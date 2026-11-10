@@ -1,13 +1,17 @@
 (function () {
   'use strict';
 
+  var CFG = window.APP_CONFIG;
   var HASH = { 1: '#where', 2: '#photos', 3: '#details', 4: '#done' };
   var RECEIPT_KEY = 'ng.claimReceipt.v1';
+  var RID_KEY = 'ng.callbackRequestId.v1';
 
   var state = {
     step: 1,
     policy: null,
     boot: { policy: '', token: '' },
+    callback: { url: '', requestId: '' },
+    pending: null,
     location: null,
     locationReady: false,
     consent: false,
@@ -154,6 +158,7 @@
       policy: params.get('policy') || params.get('policyNumber') || '',
       token: params.get('token') || ''
     };
+    state.callback = readCallbackConfig(state.boot);
 
     ClaimAPI.loadPolicy(state.boot).then(function (policy) {
       state.policy = policy;
@@ -162,6 +167,52 @@
       });
       if (state.location) DetailsUI.setLocation(state.location.address);
     }).catch(showBootError);
+  }
+
+  /* The SMS service appends the full platform callback URL to the H5 link:
+       ?callback=<encodeURIComponent(https://host/api/async/callback?token=...)>
+       &requestId=<id>
+     It can send the token separately as asyncToken instead of embedding it. */
+  function readCallbackConfig(boot) {
+    var params = new URLSearchParams(location.search);
+    var raw = params.get('callback') || params.get('cb') || CFG.asyncCallbackUrl || '';
+    if (!raw) return { url: '', requestId: '' };
+
+    var token = params.get('asyncToken') || '';
+    var requestId = params.get('requestId') || params.get('rid') || '';
+    var url = '';
+
+    try {
+      var u = new URL(raw, location.href);
+      if (u.protocol !== 'https:' && u.protocol !== 'http:') {
+        console.warn('Ignoring a non-HTTP async callback URL.');
+        return { url: '', requestId: '' };
+      }
+      if (token && !u.searchParams.get('token')) u.searchParams.set('token', token);
+      url = u.toString();
+    } catch (err) {
+      console.warn('Ignoring an invalid async callback URL.');
+      return { url: '', requestId: '' };
+    }
+
+    var scope = boot && boot.policy ? boot.policy : '';
+    if (!requestId) {
+      try {
+        var saved = JSON.parse(sessionStorage.getItem(RID_KEY) || 'null');
+        if (saved && saved.scope === scope && saved.id) requestId = saved.id;
+      } catch (err) { /* private mode */ }
+    }
+    if (!requestId) {
+      requestId = (window.crypto && typeof window.crypto.randomUUID === 'function')
+        ? window.crypto.randomUUID()
+        : 'req-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+    }
+
+    try {
+      sessionStorage.setItem(RID_KEY, JSON.stringify({ scope: scope, id: String(requestId) }));
+    } catch (err) { /* private mode */ }
+
+    return { url: url, requestId: String(requestId) };
   }
 
   function initMap() {
@@ -626,9 +677,11 @@
 
     var v = check.values;
     var p = state.policy;
+    var claimNumber = state.pending ? state.pending.claimNumber : ClaimAPI.newClaimNumber();
     var payload = {
       policyNumber: v.policyNumber,
       token: state.boot.token || undefined,
+      clientClaimNumber: claimNumber,
       contact: { name: v.name, phone: v.phone, email: v.email },
       vehicle: {
         vin: v.vin,
@@ -655,16 +708,24 @@
       meta: { locale: navigator.language, userAgent: navigator.userAgent }
     };
 
-    state.sending = true;
-    setSubmitBusy(true);
+    var pending = state.pending || { claimNumber: claimNumber, result: null };
+    pending.payload = payload;
+    pending.photos = photos;
+    state.pending = pending;
 
-    ClaimAPI.submitClaim(payload, photos).then(function (res) {
-      var receipt = buildReceipt(res, payload);
-      persistReceipt(receipt);
-      state.claim = String(res.claimNumber);
-      renderReceipt(receipt);
-      go(4);
-      window.scrollTo(0, 0);
+    state.sending = true;
+    setSubmitBusy(true, pending.result ? 'Notifying…' : 'Uploading…');
+
+    ensureClaim(pending).then(function () {
+      if (!state.callback.url) return null;
+      setSubmitBusyLabel('Notifying…');
+      return ClaimAPI.notifyAsyncTask(
+        state.callback.url,
+        buildCallbackData(payload, pending.claimNumber),
+        photos
+      );
+    }).then(function () {
+      completeSubmit(pending);
     }).catch(function (err) {
       toast(err && err.message ? err.message : 'We couldn’t send your claim. Check your connection and try again.');
       setSubmitBusy(false);
@@ -674,10 +735,73 @@
     });
   }
 
-  function setSubmitBusy(on) {
+  /* The claim is filed before the agent is notified. If only the notification
+     failed, the next tap retries it with the same claim number and requestId. */
+  function ensureClaim(pending) {
+    if (pending.result) return Promise.resolve(pending.result);
+    return ClaimAPI.submitClaim(pending.payload, pending.photos, pending.claimNumber).then(function (res) {
+      pending.result = res || {};
+      if (res && res.claimNumber) pending.claimNumber = String(res.claimNumber);
+      return res;
+    });
+  }
+
+  function buildCallbackData(payload, claimNumber) {
+    var make = payload.vehicle.make || '';
+    var model = payload.vehicle.model || '';
+    if (make && model.toLowerCase().indexOf(make.toLowerCase() + ' ') === 0) {
+      model = model.slice(make.length + 1);
+    }
+    var flat = {
+      requestId: state.callback.requestId,
+      event: 'claim.submitted',
+      claimNumber: claimNumber,
+      policyNumber: payload.policyNumber,
+      name: payload.contact.name,
+      phone: payload.contact.phone,
+      email: payload.contact.email,
+      plate: payload.vehicle.plate,
+      vin: payload.vehicle.vin,
+      make: make,
+      model: model,
+      vehicle: [make, model].filter(Boolean).join(' '),
+      color: payload.vehicle.color,
+      vehicleState: payload.vehicle.state,
+      incidentDate: payload.incident.date,
+      incidentTime: payload.incident.time,
+      location: payload.incident.location.address,
+      lat: payload.incident.location.lat,
+      lng: payload.incident.location.lng,
+      photoCount: payload.photos.length,
+      photos: payload.photos.map(function (photo) {
+        return { slot: photo.slot, name: photo.name, type: photo.type };
+      }),
+      submittedAt: payload.submittedAt
+    };
+    flat.summary = [flat.name, flat.plate, flat.location].filter(Boolean).join(' · ');
+    return flat;
+  }
+
+  function completeSubmit(pending) {
+    var receipt = buildReceipt({ claimNumber: pending.claimNumber }, pending.payload);
+    persistReceipt(receipt);
+    state.claim = String(pending.claimNumber);
+    state.pending = null;
+    renderReceipt(receipt);
+    setSubmitBusy(false);
+    go(4);
+    window.scrollTo(0, 0);
+  }
+
+  function setSubmitBusy(on, label) {
     els.submitBtn.classList.toggle('busy', on);
     els.submitBtn.disabled = on || !state.consent;
-    els.submitBtn.textContent = on ? 'Uploading…' : 'Submit claim';
+    els.submitBtn.textContent = on ? (label || 'Uploading…') : 'Submit claim';
+  }
+
+  function setSubmitBusyLabel(label) {
+    if (!state.sending) return;
+    els.submitBtn.textContent = label;
   }
 
   function buildReceipt(res, payload) {

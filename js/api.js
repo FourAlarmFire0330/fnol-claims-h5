@@ -87,11 +87,15 @@
     return 'FN-' + new Date().getFullYear() + '-' + n;
   }
 
-  /* payload: JSON-able object. photos: [{slot, blob, name}]. */
-  function submitClaim(payload, photos) {
+  /* payload: JSON-able object. photos: [{slot, blob, name}].
+     claimNumber keeps the same reference across a retry. */
+  function submitClaim(payload, photos, claimNumber) {
     if (!CFG.apiBase) {
       return delay(1150).then(function () {
-        return { claimNumber: mockClaimNumber(), receivedAt: new Date().toISOString() };
+        return {
+          claimNumber: claimNumber || mockClaimNumber(),
+          receivedAt: new Date().toISOString()
+        };
       });
     }
 
@@ -117,9 +121,71 @@
     return withTimeout(task, 45000, 'Uploading took too long. Move somewhere with a better signal and try again.');
   }
 
+  function readAsDataURL(blob) {
+    return new Promise(function (resolve, reject) {
+      var reader = new FileReader();
+      reader.onload = function () { resolve(String(reader.result || '')); };
+      reader.onerror = function () { reject(new Error('One of the photos could not be read. Try adding it again.')); };
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  /* Notify the agent platform that the customer finished the form.
+     Contract: POST <callbackUrl> with the standard envelope below.
+     The URL already carries ?token=<async token> from the SMS service. */
+  function notifyAsyncTask(callbackUrl, data, photos) {
+    var body = JSON.parse(JSON.stringify(data || {}));
+
+    var preparePhotos = Promise.resolve();
+    if (CFG.callbackIncludePhotos && photos && photos.length) {
+      body.photos = photos.map(function (p) {
+        return { slot: p.slot, name: p.name, type: p.type, size: p.blob ? p.blob.size : null };
+      });
+      preparePhotos = Promise.all(photos.map(function (p) {
+        return readAsDataURL(p.blob).then(function (dataUrl) {
+          for (var i = 0; i < body.photos.length; i++) {
+            if (body.photos[i].slot === p.slot) body.photos[i].dataUrl = dataUrl;
+          }
+        });
+      }));
+    }
+
+    var task = preparePhotos.then(function () {
+      return fetch(callbackUrl, {
+        method: 'POST',
+        mode: 'cors',
+        credentials: 'omit',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ code: 200, message: 'success', data: body })
+      });
+    }).then(function (res) {
+      return res.text().then(function (text) {
+        var reply = null;
+        try { reply = text ? JSON.parse(text) : null; } catch (err) { /* platform may answer empty */ }
+        if (!res.ok) {
+          throw new Error('The claims team’s system refused the update (HTTP ' + res.status + '). Please try again.');
+        }
+        if (reply && reply.code != null && Number(reply.code) !== 200) {
+          throw new Error(reply.message || 'The claims team’s system did not accept the update. Please try again.');
+        }
+        return reply || {};
+      });
+    }).catch(function (err) {
+      if (err && err.name === 'TypeError') {
+        console.error('Async callback could not be reached. Check CORS or use a server relay.', err);
+        throw new Error('We couldn’t reach the claims team’s system. Check your connection and try again.');
+      }
+      throw err;
+    });
+
+    return withTimeout(task, 20000, 'Notifying the claims team took too long. Check your connection and try again.');
+  }
+
   window.ClaimAPI = {
     loadPolicy: loadPolicy,
     submitClaim: submitClaim,
+    notifyAsyncTask: notifyAsyncTask,
+    newClaimNumber: mockClaimNumber,
     normalizePolicy: normalizePolicy
   };
 })();

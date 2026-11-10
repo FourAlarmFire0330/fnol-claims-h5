@@ -14,6 +14,16 @@ window.APP_CONFIG = {
     claims: '/fnol/claims'    // POST multipart: payload + photos[]
   },
 
+  /* Agent-platform async callback. Normally the SMS service puts the full
+     callback URL (with ?token=) on the H5 link as ?callback=..., so this can
+     stay empty. Set it here only for a fixed test/staging callback. */
+  asyncCallbackUrl: '',
+
+  /* false: send photo metadata only. true: also embed each compressed photo
+     as a base64 data URL. Keep false unless the workflow needs the images —
+     three photos make a large request body. */
+  callbackIncludePhotos: false,
+
   region: 'US',
   language: 'en',
   defaultCenter: { lat: 37.4529, lng: -122.1817 },   // Menlo Park, CA
