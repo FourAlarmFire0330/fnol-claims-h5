@@ -4,13 +4,14 @@
   var CFG = window.APP_CONFIG;
   var HASH = { 1: '#where', 2: '#photos', 3: '#details', 4: '#done' };
   var RECEIPT_KEY = 'ng.claimReceipt.v1';
-  var RID_KEY = 'ng.callbackRequestId.v1';
+  var ASYNC_TOKEN_KEY = 'ng.asyncToken.v1';
 
   var state = {
     step: 1,
     policy: null,
     boot: { policy: '', token: '' },
-    callback: { url: '', requestId: '' },
+    asyncToken: '',
+    callback: { url: '' },
     pending: null,
     location: null,
     locationReady: false,
@@ -30,6 +31,12 @@
   document.addEventListener('DOMContentLoaded', boot);
 
   function boot() {
+    /* The SMS link carries the dynamic token after the hash route:
+       https://fnol-claims-h5.vercel.app/#where?token=...
+       Capture it before history.replaceState() rewrites the URL. */
+    state.asyncToken = readAsyncToken();
+    state.callback = buildCallbackConfig(state.asyncToken);
+
     cacheElements();
     bindStatic();
     DetailsUI.init();
@@ -158,7 +165,6 @@
       policy: params.get('policy') || params.get('policyNumber') || '',
       token: params.get('token') || ''
     };
-    state.callback = readCallbackConfig(state.boot);
 
     ClaimAPI.loadPolicy(state.boot).then(function (policy) {
       state.policy = policy;
@@ -169,50 +175,52 @@
     }).catch(showBootError);
   }
 
-  /* The SMS service appends the full platform callback URL to the H5 link:
-       ?callback=<encodeURIComponent(https://host/api/async/callback?token=...)>
-       &requestId=<id>
-     It can send the token separately as asyncToken instead of embedding it. */
-  function readCallbackConfig(boot) {
+  /* The SMS link is https://<h5-host>/#where?token=<dynamic token>.
+     Read it before the router replaces the hash with #where, then keep it in
+     sessionStorage so a refresh before submitting can still call back. */
+  function readAsyncToken() {
+    var token = '';
+    var hash = location.hash || '';
+    var q = hash.indexOf('?');
+
+    if (q !== -1) {
+      var hp = new URLSearchParams(hash.slice(q + 1));
+      token = hp.get('token') || hp.get('asyncToken') || '';
+    }
+    if (!token) {
+      token = new URLSearchParams(location.search).get('asyncToken') || '';
+    }
+
+    if (token) {
+      try { sessionStorage.setItem(ASYNC_TOKEN_KEY, token); } catch (err) { /* private mode */ }
+      return token;
+    }
+    try { return sessionStorage.getItem(ASYNC_TOKEN_KEY) || ''; } catch (err) { return ''; }
+  }
+
+  /* The callback lives on this H5's own host and forwards to the platform.
+     A ?callback=... query is only an override for local testing. */
+  function buildCallbackConfig(token) {
     var params = new URLSearchParams(location.search);
     var raw = params.get('callback') || params.get('cb') || CFG.asyncCallbackUrl || '';
-    if (!raw) return { url: '', requestId: '' };
-
-    var token = params.get('asyncToken') || '';
-    var requestId = params.get('requestId') || params.get('rid') || '';
-    var url = '';
+    if (!raw) return { url: '' };
 
     try {
       var u = new URL(raw, location.href);
       if (u.protocol !== 'https:' && u.protocol !== 'http:') {
         console.warn('Ignoring a non-HTTP async callback URL.');
-        return { url: '', requestId: '' };
+        return { url: '' };
       }
-      if (token && !u.searchParams.get('token')) u.searchParams.set('token', token);
-      url = u.toString();
+      if (token) u.searchParams.set('token', token);
+      if (!u.searchParams.get('token')) {
+        console.warn('No async token in this link; the agent callback is disabled.');
+        return { url: '' };
+      }
+      return { url: u.toString() };
     } catch (err) {
       console.warn('Ignoring an invalid async callback URL.');
-      return { url: '', requestId: '' };
+      return { url: '' };
     }
-
-    var scope = boot && boot.policy ? boot.policy : '';
-    if (!requestId) {
-      try {
-        var saved = JSON.parse(sessionStorage.getItem(RID_KEY) || 'null');
-        if (saved && saved.scope === scope && saved.id) requestId = saved.id;
-      } catch (err) { /* private mode */ }
-    }
-    if (!requestId) {
-      requestId = (window.crypto && typeof window.crypto.randomUUID === 'function')
-        ? window.crypto.randomUUID()
-        : 'req-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
-    }
-
-    try {
-      sessionStorage.setItem(RID_KEY, JSON.stringify({ scope: scope, id: String(requestId) }));
-    } catch (err) { /* private mode */ }
-
-    return { url: url, requestId: String(requestId) };
   }
 
   function initMap() {
@@ -736,7 +744,7 @@
   }
 
   /* The claim is filed before the agent is notified. If only the notification
-     failed, the next tap retries it with the same claim number and requestId. */
+     failed, the next tap retries it with the same claim number and token. */
   function ensureClaim(pending) {
     if (pending.result) return Promise.resolve(pending.result);
     return ClaimAPI.submitClaim(pending.payload, pending.photos, pending.claimNumber).then(function (res) {
@@ -753,7 +761,6 @@
       model = model.slice(make.length + 1);
     }
     var flat = {
-      requestId: state.callback.requestId,
       event: 'claim.submitted',
       claimNumber: claimNumber,
       policyNumber: payload.policyNumber,
@@ -769,6 +776,9 @@
       vehicleState: payload.vehicle.state,
       incidentDate: payload.incident.date,
       incidentTime: payload.incident.time,
+      address: payload.incident.location.address,
+      latitude: payload.incident.location.lat,
+      longitude: payload.incident.location.lng,
       location: payload.incident.location.address,
       lat: payload.incident.location.lat,
       lng: payload.incident.location.lng,
@@ -787,6 +797,9 @@
     persistReceipt(receipt);
     state.claim = String(pending.claimNumber);
     state.pending = null;
+    state.asyncToken = '';
+    state.callback = { url: '' };
+    try { sessionStorage.removeItem(ASYNC_TOKEN_KEY); } catch (err) { /* private mode */ }
     renderReceipt(receipt);
     setSubmitBusy(false);
     go(4);

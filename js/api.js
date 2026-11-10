@@ -131,8 +131,9 @@
   }
 
   /* Notify the agent platform that the customer finished the form.
-     Contract: POST <callbackUrl> with the standard envelope below.
-     The URL already carries ?token=<async token> from the SMS service. */
+     Contract: POST <callbackUrl> with the demo-compatible envelope
+     {code: 0, message: "ok", data: {...}}.
+     The URL already carries ?token=<dynamic token> from the SMS link. */
   function notifyAsyncTask(callbackUrl, data, photos) {
     var body = JSON.parse(JSON.stringify(data || {}));
 
@@ -156,7 +157,7 @@
         mode: 'cors',
         credentials: 'omit',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ code: 200, message: 'success', data: body })
+        body: JSON.stringify({ code: 0, message: 'ok', data: body })
       });
     }).then(function (res) {
       return res.text().then(function (text) {
@@ -165,8 +166,11 @@
         if (!res.ok) {
           throw new Error('The claims team’s system refused the update (HTTP ' + res.status + '). Please try again.');
         }
-        if (reply && reply.code != null && Number(reply.code) !== 200) {
-          throw new Error(reply.message || 'The claims team’s system did not accept the update. Please try again.');
+        if (reply && reply.code != null) {
+          var code = Number(reply.code);
+          if (code !== 0 && code !== 200) {
+            throw new Error(reply.message || 'The claims team’s system did not accept the update. Please try again.');
+          }
         }
         return reply || {};
       });

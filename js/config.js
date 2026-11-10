@@ -14,10 +14,11 @@ window.APP_CONFIG = {
     claims: '/fnol/claims'    // POST multipart: payload + photos[]
   },
 
-  /* Agent-platform async callback. Normally the SMS service puts the full
-     callback URL (with ?token=) on the H5 link as ?callback=..., so this can
-     stay empty. Set it here only for a fixed test/staging callback. */
-  asyncCallbackUrl: '',
+  /* Demo-compatible async callback. The H5 POSTs the claim + location here with
+     ?token=<dynamic token from the SMS link>. /api/async/callback is a Vercel
+     function (api/async/callback.js) that forwards to the agent platform.
+     Set AGENT_CALLBACK_URL in Vercel to your platform's callback URL. */
+  asyncCallbackUrl: 'https://fnol-claims-h5.vercel.app/api/async/callback',
 
   /* false: send photo metadata only. true: also embed each compressed photo
      as a base64 data URL. Keep false unless the workflow needs the images —

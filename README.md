@@ -20,7 +20,7 @@ python3 -m http.server 4173
 
 打开 <http://localhost:4173>。手机预览建议用同一局域网的 IP 访问；摄像头/定位需要 **HTTPS 或 localhost** 才是安全上下文。
 
-> 修改 `js/` 或 `css/` 后，请把 `index.html` 里的 `?v=1.2.2` 改成新的版本号（或强制刷新），避免浏览器继续使用缓存。
+> 修改 `js/` 或 `css/` 后，请把 `index.html` 里的 `?v=1.3.0` 改成新的版本号（或强制刷新），避免浏览器继续使用缓存。
 
 ## 配置 Google Maps
 
@@ -121,77 +121,88 @@ endpoints: {
 
 ## 接入智能体平台异步任务（短信 → H5 → 回调）
 
-对应平台文档里的「异步任务」节点：平台先调用短信服务，短信服务把带 token 的链接发给客户；客户在 H5 填完并提交后，H5 调用平台的 Trigger 回调，工作流从等待点继续。
+对应平台文档里的「异步任务」节点：平台先调用短信服务，短信服务把带一次性 token 的 H5 链接发给客户；客户在 H5 填完并提交后，H5 调用平台回调，工作流从等待点继续。当前实现与线上 demo 的提交格式一致（`code: 0`、`message: "ok"`、`data.latitude/longitude/address`）。
 
 ### 整体链路
 
 ```
 Agent 工作流
   │  异步任务节点：POST https://sms.example.com/send?token=<平台自动追加>
-  │  body: { callbackUrl, requestId, phone, ... }
+  │  body: { phone, h5BaseUrl, ... }
   ▼
 短信服务
-  │  1. 从 URL query 读取 token
-  │  2. 组装 H5 链接（callback + requestId）
+  │  1. 从请求 URL 读取 token
+  │  2. 组装 H5 链接：/#where?token=<token>
   │  3. 同步返回 {"code":200,"message":"success"}
   ▼
 客户手机 · H5 链接
   │  填写定位 / 照片 / 信息，点击 Submit
   ▼
-H5 → POST <callbackUrl>?token=<token>
-     {"code":200,"message":"success","data":{...}}
+H5 → POST https://fnol-claims-h5.vercel.app/api/async/callback?token=<token>
+     {"code":0,"message":"ok","data":{latitude,longitude,address,...}}
   ▼
-平台 Trigger → 工作流继续
+Vercel Function → 平台回调 → Trigger → 工作流继续
 ```
 
 ### 1. 异步任务节点
 
-请求地址填你的短信服务接口（不是 H5 地址），平台会自动在这个地址后追加 `?token=...`。请求体至少带上回调地址和关联 ID：
+请求地址填你的短信服务接口（不是 H5 地址），平台会自动在这个地址后追加 `?token=...`。请求体按短信服务需要传：
 
 ```json
 {
-  "callbackUrl": "https://<平台域名>/api/async/callback",
-  "requestId": "{{request_id}}",
   "phone": "{{customer_phone}}",
-  "h5BaseUrl": "https://h5.example.com/",
+  "h5BaseUrl": "https://fnol-claims-h5.vercel.app/",
   "policy": "{{policy_number}}"
 }
 ```
 
 短信服务必须**同步返回** `{"code":200,"message":"success"}`，否则平台会认为异步任务提交失败（见文档中的“外部服务响应”）。短信是否真正发送成功，由短信服务自己处理。
 
+回调地址不需要由短信服务动态传：H5 固定调用自己域名下的 `/api/async/callback`，由 Vercel Function 转发到平台（见第 5 节）。
+
 ### 2. 短信里的 H5 链接
 
-短信服务从收到的请求 URL 里取 `token`，从 body 里取 `callbackUrl`、`requestId`，拼成：
+短信服务从收到的请求 URL 里取 `token`，拼成：
 
 ```
-{{h5BaseUrl}}?policy={{policy}}&requestId={{requestId}}&callback={{urlencode(callbackUrl + '?token=' + token)}}
+https://fnol-claims-h5.vercel.app/#where?token={{urlencode(token)}}
 ```
 
-`callback` 必须整体 URL-encode（`encodeURIComponent`）；如果 `callbackUrl` 本身已经带 query，用 `&token=` 追加。也可以把 token 单独传：`&asyncToken=<token>`，H5 会补到 `callback` 的 query 上。
+token 放在 `#` 后面，浏览器不会把它发给服务器，因此不会出现在 Vercel/nginx 访问日志里。H5 在启动时会读取它、写入 `sessionStorage`，然后立即把地址栏改回 `#where`；刷新页面仍能取到。
 
 H5 支持的链接参数：
 
 | 参数 | 说明 |
 | --- | --- |
+| `#where?token=...` | 异步回调 token，必填；排在 hash 路由后面 |
+| `asyncToken`（普通 query） | 可选，给不便使用 hash 的自定义链接 |
 | `policy` / `policyNumber` | 保单号，沿用原保单接口 |
-| `token` | 原保单接口的一次性 token（与下面的异步 token 不是同一个） |
-| `callback` / `cb` | 平台回调完整地址，优先使用 |
-| `asyncToken` | 可选；`callback` 未带 token 时由 H5 追加 |
-| `requestId` / `rid` | 关联 ID；不传时 H5 生成并写入 `sessionStorage` |
+| `token`（普通 query） | 原保单接口的一次性 token，**不是**异步 token |
+| `callback` / `cb` | 可选，仅用于本地测试时覆盖回调地址 |
 
-> `token` 已用于保单接口，所以异步 token 不要复用这个参数名；推荐直接把 token 编码进 `callback`，或者用 `asyncToken`。
+> 异步 token 不要放在普通 `?token=` 里，否则会和保单接口的 token 冲突。短信里的链接请按上面的格式把异步 token 放在 hash 里。
+
+换域名或本地测试时，可以在普通 query 里加 `callback` 覆盖固定回调地址；生产环境不带这个参数，直接使用 [`js/config.js`](js/config.js) 里的 `asyncCallbackUrl`。
 
 ### 3. 提交时的回调
 
 H5 在客户点击 **Submit claim** 后发送：
 
+```http
+POST https://fnol-claims-h5.vercel.app/api/async/callback?token=<token>
+Content-Type: application/json
+```
+
+Body：
+
 ```json
 {
-  "code": 200,
-  "message": "success",
+  "code": 0,
+  "message": "ok",
   "data": {
-    "requestId": "req-...",
+    "latitude": 37.4529,
+    "longitude": -122.1817,
+    "address": "1265 El Camino Real, Menlo Park, CA 94025",
     "event": "claim.submitted",
     "claimNumber": "FN-2026-419263",
     "policyNumber": "CA-4471-8829",
@@ -218,11 +229,13 @@ H5 在客户点击 **Submit claim** 后发送：
 }
 ```
 
-`data` 是平台映射用的业务数据，建议在 Trigger 的 On_Success 里配置：
+`latitude` / `longitude` / `address` 与 demo 的字段完全一致；后面是完整理赔数据，平台按需映射，不用可以忽略。建议在 Trigger 的 On_Success 里配置：
 
 | 平台变量 | 映射路径 |
 | --- | --- |
-| `request_id` | `data.requestId` |
+| `latitude` | `data.latitude` |
+| `longitude` | `data.longitude` |
+| `address` | `data.address` |
 | `claim_number` | `data.claimNumber` |
 | `customer_name` | `data.name` |
 | `customer_phone` | `data.phone` |
@@ -233,27 +246,39 @@ H5 在客户点击 **Submit claim** 后发送：
 
 字段名可按你的工作流变量调整；H5 的 `buildCallbackData()`（[`js/app.js`](js/app.js)）就是这张映射表。
 
+H5 判断成功的方式：HTTP 2xx，且响应体如果是 JSON、`code` 为 `0` 或 `200`。demo 返回的是 `{"code":0,"message":"ok"}`；文档里 `code=200` 的写法也兼容。
+
 ### 4. 失败与重试
 
-- 理赔提交成功、但回调失败：H5 停留在信息页并提示，**不会**显示已提交回执；再次点击 Submit 只重试回调，理赔号和 `requestId` 不变（平台可按 `requestId` 去重）。
+- 理赔提交成功、但回调失败：H5 停留在信息页并提示，**不会**显示已提交回执；再次点击 Submit 只重试回调，理赔号和 token 不变。
 - 理赔接口本身失败：再次提交会重试理赔接口，`clientClaimNumber` 也保持不变，可作为幂等键。
-- 回调成功后才进入回执页。
+- 回调成功后才进入回执页；成功后 token 会从 `sessionStorage` 清除。
 
-### 5. CORS 或服务端中转
+### 5. Vercel 回调中转
 
-浏览器直接 POST 平台回调地址，要求平台的回调接口允许 H5 域名跨域（`Access-Control-Allow-Origin`），并正确处理 `application/json` 触发的 `OPTIONS` 预检。如果平台只允许服务端调用，请在自己的域名加一个中转接口：
+H5 调用自己域名下的 `/api/async/callback`，不直接跨域访问平台，所以浏览器端没有 CORS 问题。中转逻辑在 [`api/async/callback.js`](api/async/callback.js)：
 
 ```
-H5 → POST https://h5.example.com/api/async/relay?token=<token>
-   → 服务端转发到 https://<平台域名>/api/async/callback?token=<token>
+H5 → POST https://fnol-claims-h5.vercel.app/api/async/callback?token=<token>
+   → Vercel Function
+   → POST https://<平台域名>/api/async/callback?token=<token>
 ```
 
-然后把 `callback` 指向中转地址，或把 [`js/config.js`](js/config.js) 的 `asyncCallbackUrl` 设为中转地址。中转服务原样转发 H5 的 `{code,message,data}` 即可。
+平台地址用 Vercel 环境变量配置：
+
+```
+AGENT_CALLBACK_URL=https://<平台域名>/api/async/callback
+```
+
+在 Vercel 项目 **Settings → Environment Variables** 里添加后重新部署。未配置时默认转发到 demo 环境 `https://agentos.resultscloud.com/api/async/callback`；正式环境请务必改成你自己的平台地址。
+
+如果 H5 换了域名，同步修改 [`js/config.js`](js/config.js) 的 `asyncCallbackUrl`。中转函数只转发 `token` 和 JSON body，不记录 token 或用户数据。
 
 ### 6. 超时与安全
 
 - 异步任务节点的超时时间要覆盖客户填写时间（例如 1800 秒）；超时后走 fallback 分支。
-- token 是访问凭据：全程 HTTPS、短有效期/一次性、不要写日志；平台侧校验 `requestId` 并把重复回调当作同一任务处理。
+- token 是访问凭据：全程 HTTPS、短有效期/一次性、不要写日志；H5 从 hash 读取后写入 `sessionStorage`，启动后即从地址栏移除，提交成功后清除。
+- 平台侧应把同一个 token 的重复回调当作同一任务处理；H5 在回调失败时允许用户用同一 token 重试。
 - 默认回调只带照片元数据（槽位、文件名、类型），不带二进制。确需让 agent 直接拿图时，把 [`js/config.js`](js/config.js) 的 `callbackIncludePhotos` 设为 `true`，H5 会把压缩后的照片以 base64 `dataUrl` 放进 `photos[]`；三张图会让请求体明显变大，生产环境更建议先上传对象存储，回调只传 URL。
 
 ## 目录
@@ -267,7 +292,8 @@ js/api.js               保单加载、理赔提交（multipart）、异步回�
 js/map.js               Google 地图、拖动选点、Places 搜索、反向地理编码、Demo 降级
 js/photos.js            相机/相册、客户端压缩、槽位管理与校验
 js/details.js           信息核对表单、行内编辑、字段校验
-js/app.js               路由（History）、权限引导、搜索交互、提交流程、回执
+js/app.js               路由（History）、token 捕获、提交流程、回执
+api/async/callback.js   Vercel Function：转发 H5 回调到智能体平台
 ```
 
 ## 已处理的细节
@@ -282,7 +308,7 @@ js/app.js               路由（History）、权限引导、搜索交互、提�
 
 ## 待接入
 
-- 真实短信发送、H5 链接 token 的签发/校验由短信服务完成（H5 只负责带回 `callback` 与 `requestId`）
-- 平台回调若不允许浏览器跨域，需要按上面的“CORS 或服务端中转”加一层转发
+- 真实短信发送、H5 链接 token 的签发/校验由短信服务完成（H5 从 `#where?token=` 读取并带回回调）
+- 部署时需要在 Vercel 设置 `AGENT_CALLBACK_URL` 指向你的平台回调地址，并重新部署；未设置时默认转发到 demo 环境
 - 车牌、车型、颜色目前来自保单数据（原型标注为 Photo）；如需 OCR，可在 `js/photos.js` 选图完成后调用识别接口回填 `details.js`
 - 理赔号生成、案件落库、查勘员通知均在 `POST /fnol/claims` 后端实现；异步回调只负责通知 agent 继续流程
