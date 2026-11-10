@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, interactive-widget=resizes-content">
+<meta name="theme-color" content="#FFFFFF" id="themeColor">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="format-detection" content="telephone=no">
+<title>Northgate Claims · Report a collision</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230F3D5C'/%3E%3Cpath d='M16 7c-3.9 0-7 3.1-7 7 0 5 7 11 7 11s7-6 7-11c0-3.9-3.1-7-7-7Zm0 9.6a2.6 2.6 0 1 1 0-5.2 2.6 2.6 0 0 1 0 5.2Z' fill='%23fff'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="css/app.css?v=1.1.1">
+</head>
+<body>
+
+<main class="app" id="app" data-dir="fwd">
+
+  <!-- ==================== 1 · LOCATION ==================== -->
+  <section class="view" data-v="1">
+    <div class="vh">
+      <div class="prog"><i class="on"></i><i></i><i></i></div>
+      <div class="toprow"><span></span><span class="kicker">Step 1 of 3</span></div>
+      <h2 class="vt">Where is the car?</h2>
+      <p class="vsub">Search an address, or move the map under the pin.</p>
+    </div>
+
+    <div class="mapwrap" id="mapwrap">
+      <div id="map" class="gmap"></div>
+      <div class="demo-map" id="mapFallback" hidden><div class="demo-art" id="demoArt"></div></div>
+
+      <div class="map-pin hide" id="pin" aria-hidden="true">
+        <span class="pulse"></span>
+        <svg viewBox="0 0 42 56"><path d="M21 1C10.2 1 1.5 9.7 1.5 20.5 1.5 35 21 55 21 55s19.5-20 19.5-34.5C40.5 9.7 31.8 1 21 1Z" fill="#123C57" stroke="#fff" stroke-width="2"/><circle cx="21" cy="20" r="7.2" fill="#fff"/></svg>
+      </div>
+
+      <div class="searchbar" id="searchbar">
+        <span class="sic" data-ic="find"></span>
+        <input type="search" id="searchInput" placeholder="Search a street or place" aria-label="Search for an address" autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="search">
+        <button class="clr" id="searchClear" type="button" data-ic="close" aria-label="Clear search"></button>
+      </div>
+      <div class="results" id="searchResults" role="listbox" aria-label="Search suggestions"></div>
+
+      <button class="fab" id="recenter" type="button" aria-label="Use my current location">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="6.5"/><path d="M12 2v3.2M12 18.8V22M2 12h3.2M18.8 12H22"/></svg>
+      </button>
+
+      <button class="demo-chip" id="demoChip" type="button" hidden title="Connect Google Maps">Demo map · Connect</button>
+
+      <div class="sheet">
+        <div class="addr" id="addrLine" aria-live="polite">Locating you…</div>
+        <div class="addr2" id="addrSub">This can take a second.</div>
+        <div class="ft">
+          <button class="ghost-s" id="adjustBtn" type="button">Adjust by hand</button>
+          <button class="btn" id="next1" type="button" disabled>Next</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="veil" id="locVeil" aria-hidden="true">
+      <div class="perm" role="dialog" aria-modal="true" aria-labelledby="locTitle" aria-describedby="locDesc">
+        <div class="grab"></div>
+        <div class="pico" data-ic="pin"></div>
+        <h3 id="locTitle">Allow location access?</h3>
+        <p id="locDesc">We’ll drop a pin where you’re standing so the adjuster can find the car. Location is only used for this claim.</p>
+        <button class="btn pbtn" id="allowLoc" type="button">Allow</button>
+        <button class="skip" id="denyLoc" type="button">Not now</button>
+      </div>
+    </div>
+
+    <div class="veil" id="keyVeil" aria-hidden="true">
+      <div class="perm" role="dialog" aria-modal="true" aria-labelledby="keyTitle" aria-describedby="keyDesc">
+        <div class="grab"></div>
+        <div class="pico" data-ic="pin"></div>
+        <h3 id="keyTitle">Connect Google Maps</h3>
+        <p id="keyDesc">Paste a Maps JavaScript API key to see live maps and address search. It is kept in this browser only — for production, set it in <code>js/config.js</code>.</p>
+        <input class="keyinput" id="keyInput" type="text" inputmode="text" placeholder="AIza…" autocomplete="off" autocapitalize="none" spellcheck="false" aria-label="Google Maps API key">
+        <button class="btn pbtn" id="keySave" type="button">Use this key</button>
+        <button class="skip" id="keyClose" type="button">Cancel</button>
+        <button class="skip" id="keyForget" type="button" hidden>Remove saved key</button>
+        <p class="keynote" id="keyNote">The key needs Maps JavaScript API, Places API (New) and Geocoding API enabled.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 2 · PHOTOS ==================== -->
+  <section class="view" data-v="2">
+    <div class="vh">
+      <div class="prog"><i class="on"></i><i class="on"></i><i></i></div>
+      <div class="toprow">
+        <button class="bk" data-back type="button" aria-label="Back to location"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 5.5 8 12l6.5 6.5"/></svg>Back</button>
+        <span class="kicker">Step 2 of 3</span>
+      </div>
+      <h2 class="vt">Add three photos</h2>
+      <p class="vsub">Two angles of the whole car, one of the point of contact.</p>
+    </div>
+
+    <div class="vbody">
+      <div class="shotlist">
+        <div class="shot">
+          <div class="ic" data-ic="car"></div>
+          <div class="tx"><b>The whole car</b><span>Front three-quarter, then the rear</span></div>
+          <div class="ct" data-ct="Car">0/2</div>
+        </div>
+        <div class="shot">
+          <div class="ic" data-ic="cam"></div>
+          <div class="tx"><b>Point of impact</b><span>Close up, fill the frame</span></div>
+          <div class="ct" data-ct="Impact">0/1</div>
+        </div>
+      </div>
+      <div class="grid" id="photoGrid"></div>
+      <div class="tip"><span data-ic="info"></span><p>Step back until the whole car is in frame. Turn the flash off if the sun is still up — glare hides scratches.</p></div>
+    </div>
+
+    <div class="vf">
+      <button class="btn" id="photoNext" type="button">Add photos</button>
+      <p class="help" id="photoHelp" aria-live="polite">0 of 3 added</p>
+    </div>
+
+    <input type="file" accept="image/*" capture="environment" hidden id="camInput">
+    <input type="file" accept="image/*" multiple hidden id="libInput">
+
+    <div class="veil" id="photoVeil" aria-hidden="true">
+      <div class="perm" role="dialog" aria-modal="true" aria-labelledby="photoSheetTitle">
+        <div class="grab"></div>
+        <h3 id="photoSheetTitle">Add a photo</h3>
+        <p id="photoSheetSub">Whole car, front</p>
+        <button class="pick" type="button" data-src="camera">
+          <span class="pic" data-ic="cam"></span>
+          <span class="ptx"><b>Take a photo</b><span>Use the camera</span></span>
+          <span class="parrow" data-ic="arrow"></span>
+        </button>
+        <button class="pick" type="button" data-src="library">
+          <span class="pic" data-ic="gallery"></span>
+          <span class="ptx"><b>Choose from library</b><span>Pick a photo you already took</span></span>
+          <span class="parrow" data-ic="arrow"></span>
+        </button>
+        <button class="skip" data-close type="button">Cancel</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 3 · DETAILS ==================== -->
+  <section class="view" data-v="3">
+    <div class="vh">
+      <div class="prog"><i class="on"></i><i class="on"></i><i class="on"></i></div>
+      <div class="toprow">
+        <button class="bk" data-back type="button" aria-label="Back to photos"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 5.5 8 12l6.5 6.5"/></svg>Back</button>
+        <span class="kicker">Step 3 of 3</span>
+      </div>
+      <h2 class="vt">Check the details</h2>
+      <p class="vsub">Everything we collected from your policy and photos. Fix anything that looks wrong.</p>
+    </div>
+
+    <div class="vbody">
+      <div class="note"><span data-ic="info"></span><p>Tap a line to correct it. VIN and policy number stay locked.</p></div>
+      <div id="detailsForm"></div>
+      <label class="consent">
+        <input type="checkbox" id="consent">
+        <span>I confirm these details are accurate and complete to the best of my knowledge.</span>
+      </label>
+    </div>
+
+    <div class="vf">
+      <button class="btn" id="submitBtn" type="button" disabled>Submit claim</button>
+      <p class="help">Nothing is sent until you submit.</p>
+    </div>
+  </section>
+
+  <!-- ==================== 4 · DONE ==================== -->
+  <section class="view done" data-v="4">
+    <div class="doneTop">
+      <div class="halo">
+        <svg width="34" height="34" viewBox="0 0 34 34" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17.6 13.8 24.4 27 9.6"/></svg>
+      </div>
+      <h3 id="doneTitle" tabindex="-1">Your claim is filed</h3>
+      <p>Everything was uploaded. We’re passing it to the claims team now.</p>
+    </div>
+    <div class="doneBody">
+      <div class="receipt">
+        <p class="rt">Claim number</p>
+        <div class="rnrow">
+          <div class="rn" id="claimNo">—</div>
+          <button class="copybtn" id="copyBtn" type="button" aria-label="Copy claim number" data-ic="copy"></button>
+        </div>
+        <div class="perf"></div>
+        <div class="rrow"><span>Vehicle</span><b id="rcVehicle">—</b></div>
+        <div class="rrow"><span>Plate</span><b id="rcPlate">—</b></div>
+        <div class="rrow"><span>Photos uploaded</span><b id="rcPhotos">0</b></div>
+        <div class="rrow"><span>Location</span><b id="rcLocation">—</b></div>
+        <div class="rrow"><span>Sent to</span><b id="rcEmail">—</b></div>
+      </div>
+      <div class="steps">
+        <div class="steprow"><span class="dot">1</span><div><b>An adjuster will call you</b><span id="rcCall">Within 2 hours on the number on your claim.</span></div></div>
+        <div class="steprow"><span class="dot">2</span><div><b>Stay somewhere safe</b><span>Off the road, hazards on if you’re still moving.</span></div></div>
+        <div class="steprow"><span class="dot">3</span><div><b>Nothing else to send</b><span>We have your photos, plates and policy.</span></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- boot / link error -->
+  <div class="booterror" id="bootError" hidden>
+    <div class="be-card">
+      <div class="pico" data-ic="alert"></div>
+      <h3>We couldn’t open this claim</h3>
+      <p id="beMsg">The link may have expired, or you may be offline. Check your connection and try again.</p>
+      <button class="btn" id="beRetry" type="button">Try again</button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+</main>
+
+<script src="js/config.js?v=1.1.1"></script>
+<script src="js/icons.js?v=1.1.1"></script>
+<script src="js/api.js?v=1.1.1"></script>
+<script src="js/map.js?v=1.1.1"></script>
+<script src="js/photos.js?v=1.1.1"></script>
+<script src="js/details.js?v=1.1.1"></script>
+<script src="js/app.js?v=1.1.1"></script>
+</body>
+</html>
