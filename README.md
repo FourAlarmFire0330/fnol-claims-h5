@@ -20,7 +20,7 @@ python3 -m http.server 4173
 
 打开 <http://localhost:4173>。手机预览建议用同一局域网的 IP 访问；摄像头/定位需要 **HTTPS 或 localhost** 才是安全上下文。
 
-> 修改 `js/` 或 `css/` 后，请把 `index.html` 里的 `?v=1.3.1` 改成新的版本号（或强制刷新），避免浏览器继续使用缓存。
+> 修改 `js/` 或 `css/` 后，请把 `index.html` 里的 `?v=1.3.2` 改成新的版本号（或强制刷新），避免浏览器继续使用缓存。
 
 ## 配置 Google Maps
 
