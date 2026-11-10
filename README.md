@@ -20,7 +20,7 @@ python3 -m http.server 4173
 
 打开 <http://localhost:4173>。手机预览建议用同一局域网的 IP 访问；摄像头/定位需要 **HTTPS 或 localhost** 才是安全上下文。
 
-> 修改 `js/` 或 `css/` 后，请把 `index.html` 里的 `?v=1.3.0` 改成新的版本号（或强制刷新），避免浏览器继续使用缓存。
+> 修改 `js/` 或 `css/` 后，请把 `index.html` 里的 `?v=1.3.1` 改成新的版本号（或强制刷新），避免浏览器继续使用缓存。
 
 ## 配置 Google Maps
 
@@ -121,7 +121,7 @@ endpoints: {
 
 ## 接入智能体平台异步任务（短信 → H5 → 回调）
 
-对应平台文档里的「异步任务」节点：平台先调用短信服务，短信服务把带一次性 token 的 H5 链接发给客户；客户在 H5 填完并提交后，H5 调用平台回调，工作流从等待点继续。当前实现与线上 demo 的提交格式一致（`code: 0`、`message: "ok"`、`data.latitude/longitude/address`）。
+对应平台文档里的「异步任务」节点：平台先调用短信服务，短信服务把带一次性 token 的 H5 链接发给客户；客户在 H5 填完并提交后，H5 调用平台回调，工作流从等待点继续。当前按 demo 的格式提交（`code: 0`、`message: "ok"`），`data` 先只回传 `plate` 做联调测试。
 
 ### 整体链路
 
@@ -139,7 +139,7 @@ Agent 工作流
   │  填写定位 / 照片 / 信息，点击 Submit
   ▼
 H5 → POST https://fnol-claims-h5.vercel.app/api/async/callback?token=<token>
-     {"code":0,"message":"ok","data":{latitude,longitude,address,...}}
+     {"code":0,"message":"ok","data":{"plate":"8KDL294"}}
   ▼
 Vercel Function → 平台回调 → Trigger → 工作流继续
 ```
@@ -200,51 +200,18 @@ Body：
   "code": 0,
   "message": "ok",
   "data": {
-    "latitude": 37.4529,
-    "longitude": -122.1817,
-    "address": "1265 El Camino Real, Menlo Park, CA 94025",
-    "event": "claim.submitted",
-    "claimNumber": "FN-2026-419263",
-    "policyNumber": "CA-4471-8829",
-    "name": "Daniel Reyes",
-    "phone": "+1 (650) 555-0142",
-    "email": "daniel.reyes@example.com",
-    "plate": "8KDL294",
-    "vin": "4T1B11HK5KU123456",
-    "make": "Toyota",
-    "model": "Camry LE",
-    "vehicle": "Toyota Camry LE",
-    "color": "Silver",
-    "vehicleState": "California",
-    "incidentDate": "2026-11-10",
-    "incidentTime": "14:39",
-    "location": "1265 El Camino Real, Menlo Park, CA 94025",
-    "lat": 37.4529,
-    "lng": -122.1817,
-    "photoCount": 3,
-    "photos": [{ "slot": "w1", "name": "front.jpg", "type": "image/jpeg" }],
-    "submittedAt": "2026-11-10T06:41:04.083Z",
-    "summary": "Daniel Reyes · 8KDL294 · 1265 El Camino Real, Menlo Park, CA 94025"
+    "plate": "8KDL294"
   }
 }
 ```
 
-`latitude` / `longitude` / `address` 与 demo 的字段完全一致；后面是完整理赔数据，平台按需映射，不用可以忽略。建议在 Trigger 的 On_Success 里配置：
+当前联调阶段 `data` 只保留 `plate`；`latitude / longitude / address / claimNumber / name / photoCount` 已从回调数据中移除。完整理赔信息仍提交到 `POST /fnol/claims`，后续需要再把字段加回 `js/app.js` 的 `buildCallbackData()` 即可。
+
+On_Success 只需要配置一个映射：
 
 | 平台变量 | 映射路径 |
 | --- | --- |
-| `latitude` | `data.latitude` |
-| `longitude` | `data.longitude` |
-| `address` | `data.address` |
-| `claim_number` | `data.claimNumber` |
-| `customer_name` | `data.name` |
-| `customer_phone` | `data.phone` |
 | `plate` | `data.plate` |
-| `vehicle` | `data.vehicle` |
-| `incident_location` | `data.location` |
-| `photo_count` | `data.photoCount` |
-
-字段名可按你的工作流变量调整；H5 的 `buildCallbackData()`（[`js/app.js`](js/app.js)）就是这张映射表。
 
 H5 判断成功的方式：HTTP 2xx，且响应体如果是 JSON、`code` 为 `0` 或 `200`。demo 返回的是 `{"code":0,"message":"ok"}`；文档里 `code=200` 的写法也兼容。
 
@@ -279,7 +246,7 @@ AGENT_CALLBACK_URL=https://<平台域名>/api/async/callback
 - 异步任务节点的超时时间要覆盖客户填写时间（例如 1800 秒）；超时后走 fallback 分支。
 - token 是访问凭据：全程 HTTPS、短有效期/一次性、不要写日志；H5 从 hash 读取后写入 `sessionStorage`，启动后即从地址栏移除，提交成功后清除。
 - 平台侧应把同一个 token 的重复回调当作同一任务处理；H5 在回调失败时允许用户用同一 token 重试。
-- 默认回调只带照片元数据（槽位、文件名、类型），不带二进制。确需让 agent 直接拿图时，把 [`js/config.js`](js/config.js) 的 `callbackIncludePhotos` 设为 `true`，H5 会把压缩后的照片以 base64 `dataUrl` 放进 `photos[]`；三张图会让请求体明显变大，生产环境更建议先上传对象存储，回调只传 URL。
+- 当前测试只回传 `plate`。以后需要照片时，把 [`js/config.js`](js/config.js) 的 `callbackIncludePhotos` 设为 `true`，H5 会把压缩后的照片以 base64 `dataUrl` 放进 `data.photos[]`；三张图会让请求体明显变大，生产环境更建议先上传对象存储，回调只传 URL。
 
 ## 目录
 

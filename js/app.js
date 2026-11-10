@@ -729,7 +729,7 @@
       setSubmitBusyLabel('Notifying…');
       return ClaimAPI.notifyAsyncTask(
         state.callback.url,
-        buildCallbackData(payload, pending.claimNumber),
+        buildCallbackData(payload),
         photos
       );
     }).then(function () {
@@ -754,42 +754,8 @@
     });
   }
 
-  function buildCallbackData(payload, claimNumber) {
-    var make = payload.vehicle.make || '';
-    var model = payload.vehicle.model || '';
-    if (make && model.toLowerCase().indexOf(make.toLowerCase() + ' ') === 0) {
-      model = model.slice(make.length + 1);
-    }
-    var flat = {
-      event: 'claim.submitted',
-      claimNumber: claimNumber,
-      policyNumber: payload.policyNumber,
-      name: payload.contact.name,
-      phone: payload.contact.phone,
-      email: payload.contact.email,
-      plate: payload.vehicle.plate,
-      vin: payload.vehicle.vin,
-      make: make,
-      model: model,
-      vehicle: [make, model].filter(Boolean).join(' '),
-      color: payload.vehicle.color,
-      vehicleState: payload.vehicle.state,
-      incidentDate: payload.incident.date,
-      incidentTime: payload.incident.time,
-      address: payload.incident.location.address,
-      latitude: payload.incident.location.lat,
-      longitude: payload.incident.location.lng,
-      location: payload.incident.location.address,
-      lat: payload.incident.location.lat,
-      lng: payload.incident.location.lng,
-      photoCount: payload.photos.length,
-      photos: payload.photos.map(function (photo) {
-        return { slot: photo.slot, name: photo.name, type: photo.type };
-      }),
-      submittedAt: payload.submittedAt
-    };
-    flat.summary = [flat.name, flat.plate, flat.location].filter(Boolean).join(' · ');
-    return flat;
+  function buildCallbackData(payload) {
+    return { plate: payload.vehicle.plate };
   }
 
   function completeSubmit(pending) {
