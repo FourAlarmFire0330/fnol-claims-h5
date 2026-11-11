@@ -3,9 +3,10 @@
 
   var CFG = window.APP_CONFIG || {};
   var DATA = window.CA_MAP;
+  var DETAIL = window.CA_STREET_DETAIL || null;
 
   var MIN_K = 1;
-  var MAX_K = 10;
+  var MAX_K = (CFG.streetMap && DETAIL) ? 3000 : 10;
   var EMIT_DELAY = 180;
 
   var S = null;
@@ -70,6 +71,8 @@
       root: document.getElementById('map'),
       layer: document.getElementById('mapLayer'),
       labels: document.getElementById('mapLabels'),
+      street: document.getElementById('streetLayer'),
+      streetLabels: document.getElementById('streetLabels'),
       places: [],
       search: [],
       vw: 0,
@@ -81,21 +84,26 @@
       ty: 0,
       center: null,
       emitTimer: null,
-      ready: false
+      ready: false,
+      streetOn: false,
+      streetW: 0,
+      streetH: 0
     };
     if (!S.root || !S.layer || !S.labels) {
       return Promise.reject(new Error('The map container is missing.'));
     }
 
     buildLabels();
+    buildStreetLabels();
     buildSearch();
     bind();
 
     return new Promise(function (resolve) {
-      requestAnimationFrame(function () {
-        resize(true);
-        resolve();
-      });
+      /* Measure right away so the map still starts in a background tab,
+         where requestAnimationFrame can be throttled. */
+      resize(true);
+      resolve();
+      requestAnimationFrame(function () { resize(false); });
     });
   }
 
@@ -166,6 +174,17 @@
     S.search = list;
   }
 
+  function buildStreetLabels() {
+    if (!DETAIL || !S.streetLabels) return;
+    DETAIL.labels.forEach(function (label, index) {
+      var el = document.createElement('span');
+      el.className = 'street-label' + (index < 10 ? ' major' : '');
+      el.textContent = label.name;
+      S.streetLabels.appendChild(el);
+      label.el = el;
+    });
+  }
+
   /* ---------------------------------------------------------------------
      layout
      --------------------------------------------------------------------- */
@@ -229,9 +248,87 @@
     S.layer.style.transform = 'translate3d(' + S.tx.toFixed(1) + 'px,' +
       S.ty.toFixed(1) + 'px,0) scale(' + S.z.toFixed(4) + ')';
     updateLabels();
+    updateStreet();
+  }
+
+  function streetRect() {
+    var b = DETAIL.bounds;
+    var a = project(b.n, b.w);
+    var c = project(b.s, b.e);
+    return {
+      x0: a.x, y0: a.y, x1: c.x, y1: c.y,
+      left: S.tx + a.x * S.z,
+      top: S.ty + a.y * S.z,
+      w: (c.x - a.x) * S.z,
+      h: (c.y - a.y) * S.z
+    };
+  }
+
+  /* Show the street-detail layer once it fills the viewport, and keep its
+     labels upright at a readable size while the map scales underneath. */
+  function updateStreet() {
+    if (!S || !DETAIL || !S.street) return;
+
+    var r = streetRect();
+    var cx = (S.vw / 2 - S.tx) / S.z;
+    var cy = (S.vh / 2 - S.ty) / S.z;
+    var inside = cx >= r.x0 && cx <= r.x1 && cy >= r.y0 && cy <= r.y1;
+    var on = inside && r.w >= S.vw * 0.9 && r.h >= S.vh * 0.9;
+
+    if (on !== S.streetOn) {
+      S.streetOn = on;
+      S.street.classList.toggle('on', on);
+    }
+    if (!on) {
+      hideStreetLabels();
+      return;
+    }
+
+    var w = Math.round(r.w);
+    var h = Math.round(r.h);
+    if (w !== S.streetW || h !== S.streetH) {
+      S.streetW = w;
+      S.streetH = h;
+      S.street.style.width = w + 'px';
+      S.street.style.height = h + 'px';
+    }
+    S.street.style.transform = 'translate3d(' + r.left.toFixed(1) + 'px,' +
+      r.top.toFixed(1) + 'px,0)';
+
+    var showLabels = S.k >= (CFG.streetMap.labelMinK || 900);
+    DETAIL.labels.forEach(function (label) {
+      var el = label.el;
+      if (!el) return;
+      if (!showLabels) {
+        el.classList.remove('on');
+        return;
+      }
+      var x = r.left + label.x / DETAIL.width * r.w;
+      var y = r.top + label.y / DETAIL.height * r.h;
+      if (x < -80 || x > S.vw + 80 || y < -30 || y > S.vh + 30) {
+        el.classList.remove('on');
+        return;
+      }
+      el.classList.add('on');
+      el.style.transform = 'translate3d(' + x.toFixed(1) + 'px,' + y.toFixed(1) +
+        'px,0) translate(-50%,-50%) rotate(' + label.a + 'deg)';
+    });
+  }
+
+  function hideStreetLabels() {
+    if (!DETAIL) return;
+    DETAIL.labels.forEach(function (label) {
+      if (label.el) label.el.classList.remove('on');
+    });
   }
 
   function updateLabels() {
+    if (S.streetOn) {
+      for (var j = 0; j < S.places.length; j++) {
+        if (S.places[j].el.style.display !== 'none') S.places[j].el.style.display = 'none';
+      }
+      return;
+    }
     for (var i = 0; i < S.places.length; i++) {
       var item = S.places[i];
       if (S.k + 0.001 < item.minZoom) {

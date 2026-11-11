@@ -46,7 +46,7 @@
     PhotosUI.init({
       onContinue: function () {
         if (!state.policy) { toast('Still loading your policy. One moment…'); return; }
-        if (PhotosUI.count() < 3) { toast('Add all three photos to continue.'); return; }
+        if (PhotosUI.count() < 1) { toast('Add at least one photo to continue.'); return; }
         go(3);
       },
       onError: toast
@@ -88,7 +88,6 @@
     els.rcPhotos = document.getElementById('rcPhotos');
     els.rcLocation = document.getElementById('rcLocation');
     els.rcEmail = document.getElementById('rcEmail');
-    els.rcCall = document.getElementById('rcCall');
     els.copyBtn = document.getElementById('copyBtn');
     els.toast = document.getElementById('toast');
     els.bootError = document.getElementById('bootError');
@@ -335,17 +334,29 @@
       els.next1.disabled = true;
     }
 
-    MapView.geolocate().then(function (pos) {
+    var demo = CFG.simulateLocation;
+    var lookup = demo && isFinite(demo.lat) && isFinite(demo.lng)
+      ? Promise.resolve({ lat: demo.lat, lng: demo.lng, accuracy: null })
+      : MapView.geolocate();
+
+    lookup.then(function (pos) {
       if (!MapView.contains(pos.lat, pos.lng)) {
         toast('This demo map covers California only. Search a California city or drag the map instead.');
         showSearchHint();
         return null;
       }
       state.programmaticMoveAt = Date.now();
-      MapView.panTo(pos.lat, pos.lng, { zoom: 6 });
+      MapView.panTo(pos.lat, pos.lng, { zoom: CFG.streetZoom || 6 });
+      if (demo && isFinite(demo.lat) && isFinite(demo.lng)) {
+        applyResolved({
+          line1: demo.line1,
+          short: demo.short,
+          address: demo.address
+        }, pos.lat, pos.lng, 'gps', null);
+        return null;
+      }
       return MapView.reverseGeocode(pos.lat, pos.lng).catch(function () {
-        var point = fmtCoords(pos.lat, pos.lng);
-        return { line1: 'Current location', short: point, address: point };
+        return { line1: 'Current location', short: 'Street location', address: 'Street location' };
       }).then(function (r) {
         applyResolved(r, pos.lat, pos.lng, 'gps', pos.accuracy);
       });
@@ -544,7 +555,7 @@
 
   function go(step) {
     if (step > 1 && !state.location) return;
-    if (step > 2 && PhotosUI.count() < 3) return;
+    if (step > 2 && PhotosUI.count() < 1) return;
     var back = step < state.step;
     show(step, { back: back });
     if (state.histOK) {
@@ -570,7 +581,7 @@
       return;
     }
     var step = e.state && typeof e.state.step === 'number' ? e.state.step : 1;
-    if (step > 2 && PhotosUI.count() < 3) step = 2;
+    if (step > 2 && PhotosUI.count() < 1) step = 2;
     if (step > 1 && !state.location) step = 1;
     show(step, { back: true });
   }
@@ -594,7 +605,7 @@
     }
 
     var photos = PhotosUI.getPhotos();
-    if (photos.length < 3) { toast('Add all three photos first.'); return; }
+    if (photos.length < 1) { toast('Add at least one photo first.'); return; }
 
     var v = check.values;
     var p = state.policy;
@@ -728,9 +739,6 @@
     els.rcPhotos.textContent = String(r.photos || 0);
     els.rcLocation.textContent = r.location || '—';
     els.rcEmail.textContent = r.email || '—';
-    els.rcCall.textContent = r.phone
-      ? 'Within 2 hours on ' + r.phone + '.'
-      : 'Within 2 hours on the number on your claim.';
   }
 
   function persistReceipt(r) {

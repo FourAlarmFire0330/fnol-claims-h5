@@ -90,7 +90,7 @@
 
   function onNext() {
     if (busy) return;
-    if (photos.length >= TOTAL) {
+    if (photos.length >= 1) {
       if (opts.onContinue) opts.onContinue();
       return;
     }
@@ -265,11 +265,11 @@
 
     els.next.disabled = false;
     if (n === 0) {
-      els.help.textContent = '0 of ' + TOTAL + ' added';
+      els.help.textContent = '0 of ' + TOTAL + ' added · at least 1 required';
       els.next.textContent = 'Add photos';
     } else if (n < TOTAL) {
-      els.help.textContent = n + ' of ' + TOTAL + ' added · ' + (TOTAL - n) + ' to go';
-      els.next.innerHTML = 'Add ' + (TOTAL - n) + ' more' + (window.ICONS.arrow || '');
+      els.help.textContent = n + ' of ' + TOTAL + ' added · 1 is enough to continue';
+      els.next.innerHTML = 'Continue' + (window.ICONS.arrow || '');
     } else {
       els.help.textContent = 'All ' + TOTAL + ' photos added';
       els.next.innerHTML = 'Continue' + (window.ICONS.arrow || '');

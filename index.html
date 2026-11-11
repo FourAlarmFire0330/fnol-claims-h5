@@ -9,7 +9,7 @@
 <meta name="format-detection" content="telephone=no">
 <title>Northgate Claims · Report a collision</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230F3D5C'/%3E%3Cpath d='M16 7c-3.9 0-7 3.1-7 7 0 5 7 11 7 11s7-6 7-11c0-3.9-3.1-7-7-7Zm0 9.6a2.6 2.6 0 1 1 0-5.2 2.6 2.6 0 0 1 0 5.2Z' fill='%23fff'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="css/app.css?v=1.4.2">
+<link rel="stylesheet" href="css/app.css?v=1.5.4">
 </head>
 <body>
 
@@ -30,6 +30,10 @@
           <img class="map-base" src="assets/california-map.svg" alt="Map of California" draggable="false">
           <div class="map-labels" id="mapLabels"></div>
         </div>
+        <div class="street-layer" id="streetLayer" aria-hidden="true">
+          <img class="street-base" src="assets/hollywood-streets.svg" alt="" draggable="false">
+        </div>
+        <div class="street-labels" id="streetLabels" aria-hidden="true"></div>
       </div>
 
       <div class="zoomctl" id="zoomCtl" aria-label="Map zoom">
@@ -37,7 +41,7 @@
         <button id="zoomOut" type="button" aria-label="Zoom out">−</button>
       </div>
 
-      <div class="map-credit" aria-hidden="true">Demo map · California</div>
+      <div class="map-credit">Demo map · California · © OpenStreetMap contributors</div>
 
       <div class="map-pin hide" id="pin" aria-hidden="true">
         <span class="pulse"></span>
@@ -85,8 +89,8 @@
         <button class="bk" data-back type="button" aria-label="Back to location"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 5.5 8 12l6.5 6.5"/></svg>Back</button>
         <span class="kicker">Step 2 of 3</span>
       </div>
-      <h2 class="vt">Add three photos</h2>
-      <p class="vsub">Two angles of the whole car, one of the point of contact.</p>
+      <h2 class="vt">Add photos</h2>
+      <p class="vsub">At least one photo. Two angles of the car and the damage help most.</p>
     </div>
 
     <div class="vbody">
@@ -184,11 +188,6 @@
         <div class="rrow"><span>Location</span><b id="rcLocation">—</b></div>
         <div class="rrow"><span>Sent to</span><b id="rcEmail">—</b></div>
       </div>
-      <div class="steps">
-        <div class="steprow"><span class="dot">1</span><div><b>An adjuster will call you</b><span id="rcCall">Within 2 hours on the number on your claim.</span></div></div>
-        <div class="steprow"><span class="dot">2</span><div><b>Stay somewhere safe</b><span>Off the road, hazards on if you’re still moving.</span></div></div>
-        <div class="steprow"><span class="dot">3</span><div><b>Nothing else to send</b><span>We have your photos, plates and policy.</span></div></div>
-      </div>
     </div>
   </section>
 
@@ -205,13 +204,14 @@
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 </main>
 
-<script src="js/config.js?v=1.4.2"></script>
-<script src="js/icons.js?v=1.4.2"></script>
-<script src="js/api.js?v=1.4.2"></script>
-<script src="js/ca-data.js?v=1.4.2"></script>
-<script src="js/map.js?v=1.4.2"></script>
-<script src="js/photos.js?v=1.4.2"></script>
-<script src="js/details.js?v=1.4.2"></script>
-<script src="js/app.js?v=1.4.2"></script>
+<script src="js/config.js?v=1.5.4"></script>
+<script src="js/icons.js?v=1.5.4"></script>
+<script src="js/api.js?v=1.5.4"></script>
+<script src="js/ca-data.js?v=1.5.4"></script>
+<script src="js/street-data.js?v=1.5.4"></script>
+<script src="js/map.js?v=1.5.4"></script>
+<script src="js/photos.js?v=1.5.4"></script>
+<script src="js/details.js?v=1.5.4"></script>
+<script src="js/app.js?v=1.5.4"></script>
 </body>
 </html>

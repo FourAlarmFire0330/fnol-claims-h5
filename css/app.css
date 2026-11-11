@@ -155,6 +155,20 @@ h2.vt{margin:2px 0 0;font-size:25px;line-height:1.22;font-weight:660;letter-spac
 }
 .map-label.major{font-size:12.5px;font-weight:700;color:#234631}
 .map-label.major i{width:7px;height:7px;background:#123C57}
+.street-layer{
+  position:absolute;left:0;top:0;display:none;pointer-events:none;
+  transform-origin:0 0;background:#F3F1EC;will-change:transform;
+}
+.street-layer.on{display:block}
+.street-base{width:100%;height:100%;display:block;pointer-events:none;-webkit-user-drag:none;user-select:none}
+.street-labels{position:absolute;inset:0;overflow:hidden;pointer-events:none}
+.street-label{
+  position:absolute;left:0;top:0;white-space:nowrap;display:none;
+  font-size:10.5px;font-weight:600;line-height:1;color:#6E6B64;letter-spacing:.005em;
+  text-shadow:0 1px 0 #fff,0 0 3px #fff,0 0 4px #fff,0 0 6px #fff;
+}
+.street-label.on{display:block}
+.street-label.major{font-size:11.5px;font-weight:700;color:#4A4740}
 .zoomctl{
   position:absolute;right:14px;top:70px;z-index:5;display:flex;flex-direction:column;
   background:#fff;border-radius:11px;overflow:hidden;
@@ -480,15 +494,6 @@ h2.vt{margin:2px 0 0;font-size:25px;line-height:1.22;font-weight:660;letter-spac
 .rrow{display:flex;justify-content:space-between;gap:14px;font-size:13px;padding:5px 0}
 .rrow span{color:var(--muted);flex:0 0 auto}
 .rrow b{font-weight:600;color:var(--ink);text-align:right;min-width:0;word-break:break-word}
-.steps{margin-top:14px;background:#fff;border:1px solid #E4EDF4;border-radius:16px;padding:4px 18px}
-.steprow{display:flex;gap:13px;padding:14px 0;border-bottom:1px solid var(--hair);align-items:flex-start}
-.steprow:last-child{border-bottom:0}
-.steprow .dot{
-  width:22px;height:22px;border-radius:50%;flex:0 0 auto;display:grid;place-items:center;
-  background:var(--ice);color:var(--navy);font-size:11px;font-weight:700;margin-top:1px;
-}
-.steprow b{display:block;font-size:13.6px;font-weight:620;letter-spacing:-.004em}
-.steprow span{display:block;font-size:12.3px;color:var(--soft);margin-top:3px;line-height:1.5}
 
 /* ---------- toast / boot error ---------- */
 .toast{

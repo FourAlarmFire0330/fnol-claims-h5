@@ -117,13 +117,6 @@
       '</div>',
 
       '<div class="grp">',
-        '<div class="gh">Policy</div>',
-        '<div class="rows">',
-          fieldHTML({ k: 'policyNumber', lb: 'Policy number', val: p.policyNumber, src: 'policy', mono: true, ro: true }),
-        '</div>',
-      '</div>',
-
-      '<div class="grp">',
         '<div class="gh">Incident</div>',
         '<div class="rows">',
           pairHTML([

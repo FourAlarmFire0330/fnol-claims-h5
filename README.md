@@ -4,10 +4,10 @@
 
 ## 流程
 
-1. **Where is the car** — 在 California 地图上拖动选点 / 搜索城市与地点 / GPS 定位，显示对应位置信息
-2. **Add three photos** — 调用手机相机或相册，客户端压缩后生成 3 张必传照片（车头、车尾、受损部位）
-3. **Check the details** — 保单信息带入、逐项可编辑、VIN 与保单号锁定、日期时间选择、勾选确认
-4. **Filed** — 生成理赔号回执，支持复制理赔号；刷新页面不会重复提交
+1. **Where is the car** — 同意定位后直接落在演示位置（Sunset Blvd & N Highland Ave），以街道级视野显示周边街道；也可拖动选点 / 搜索城市与地点 / 重新定位
+2. **Add photos** — 调用手机相机或相册，客户端压缩后生成照片（车头、车尾、受损部位），至少 1 张即可继续，最多 3 张
+3. **Check the details** — 保单信息带入、逐项可编辑、VIN 锁定、日期时间选择、勾选确认（不再显示 Policy number）
+4. **Filed** — 只保留蓝色标题区和回执基础信息，支持复制理赔号；刷新页面不会重复提交
 
 浏览器返回键、页面转场、权限引导、演示地图、错误提示均已处理。
 
@@ -20,7 +20,7 @@ python3 -m http.server 4173
 
 打开 <http://localhost:4173>。手机预览建议用同一局域网的 IP 访问；摄像头/定位需要 **HTTPS 或 localhost** 才是安全上下文。
 
-> 修改 `js/`、`css/` 或 `assets/` 后，请把 `index.html` 里的 `?v=1.4.2` 改成新的版本号（或强制刷新），避免浏览器继续使用缓存。
+> 修改 `js/`、`css/` 或 `assets/` 后，请把 `index.html` 里的 `?v=1.5.4` 改成新的版本号（或强制刷新），避免浏览器继续使用缓存。
 
 ## 内置 California 地图
 
@@ -28,12 +28,18 @@ python3 -m http.server 4173
 
 支持的能力：
 
-- **缩放**：右下角 `+ / −` 按钮、鼠标滚轮、双指捏合、双击、键盘 `+ / -`。缩放范围 1×–10×，始终以手势位置或地图中心为锚点。
-- **拖动选点**：拖动地图，屏幕中央的固定图钉指向的位置就是选点；松手后显示最近的城市 / 县与经纬度，并启用 Next。GPS 定位只作为快捷入口，超出 California 边界会提示改用搜索或拖动。
+- **缩放**：`+ / −` 按钮、鼠标滚轮、双指捏合、双击、键盘 `+ / -`。州级 1× 到街道级，始终以手势位置或地图中心为锚点。
+- **拖动选点**：拖动地图，屏幕中央的固定图钉指向的位置就是选点；松手后显示最近的城市 / 县（街道级视图显示街道名），并启用 Next。
 - **地点搜索**：内置 42 个 California 城市与景点、58 个县，支持缩写（`sf`、`la`、`sd`、`sac`、`sj`）和 `纬度,经度` 坐标。选中建议后地图居中并回填地址。
-- **位置信息**：本地反向查找，14 km 内取最近的主要城市、8 km 内取次要地点，否则回退到最近的县；地址始终附带经纬度，便于后台核对。
+- **位置信息**：本地反向查找，14 km 内取最近的主要城市、8 km 内取次要地点，否则回退到最近的县；演示定位直接显示街道名，不显示经纬度。
 
-地图初始视野覆盖整个加州（`defaultCenter` 约为州地理中心），向外拖动会被限制在州界底图范围内。修改 `assets/` 或 `js/` 后请同步更新 `index.html` 里的 `?v=` 版本号。
+### 演示定位与街道级视野
+
+`js/config.js` 的 `simulateLocation` 让客户点 **Allow** 后直接落在 Sunset Blvd & N Highland Ave（34.098, -118.3387），不依赖真实 GPS；`streetZoom` 控制进入时的缩放倍率（默认 2200，约 300–500 米的视野）。把它设为 `null` 即改用真实设备定位。
+
+街道细节在 [`assets/hollywood-streets.svg`](assets/hollywood-streets.svg)（约 2 km × 2 km，道路与建筑轮廓来自 OpenStreetMap，© OpenStreetMap contributors, ODbL），街道名索引在 [`js/street-data.js`](js/street-data.js)。只有放大到街道级时才显示，缩回州级视图会自动隐藏，底图仍是全州地图；拖动范围仍限制在加州底图内。
+
+地图初始视野覆盖整个加州（`defaultCenter` 约为州地理中心）；未授权定位时停留在州级视图，可搜索或拖动选点。修改 `assets/` 或 `js/` 后请同步更新 `index.html` 里的 `?v=` 版本号。
 
 ## 接入理赔接口
 
@@ -249,14 +255,16 @@ H5 (fnol-claims-h5.vercel.app) → https://agents.dyna.ai/api/async/callback?tok
 
 ```
 index.html              四个步骤的页面结构
-assets/california-map.svg  内置 California 底图（县界、公路、州界）
+assets/california-map.svg     内置 California 底图（县界、公路、州界）
+assets/hollywood-streets.svg  街道级细节层（OpenStreetMap 数据）
 css/app.css             设计还原 + 全屏 H5 适配（安全区、键盘、桌面预览框）
-js/config.js            接口地址 / 异步回调 / 演示保单 / 地图初始视野
+js/config.js            接口地址 / 异步回调 / 演示保单 / 地图与演示定位参数
 js/icons.js             内联图标
 js/api.js               保单加载、理赔提交（multipart）、异步回调、超时与错误归一化
 js/ca-data.js           地名索引、县中心与地图投影参数
-js/map.js               内置地图引擎：缩放、拖动选点、搜索、本地反向地理编码
-js/photos.js            相机/相册、客户端压缩、槽位管理与校验
+js/street-data.js       街道名标签与细节层边界
+js/map.js               内置地图引擎：缩放、拖动选点、搜索、街道层、反向地理编码
+js/photos.js            相机/相册、客户端压缩、槽位管理（1–3 张）
 js/details.js           信息核对表单、行内编辑、字段校验
 js/app.js               路由（History）、token 捕获、提交流程、回执
 ```
@@ -264,7 +272,7 @@ js/app.js               路由（History）、token 捕获、提交流程、回�
 ## 已处理的细节
 
 - **安全区**：`env(safe-area-inset-*)` 适配刘海屏与 Home Indicator；`100dvh` 适配移动端地址栏
-- **图片**：读取时按最长边 1600px、JPEG 0.82 压缩，避免 12MP 原图直传；HEIC/解码失败时回退原文件
+- **图片**：读取时按最长边 1600px、JPEG 0.82 压缩，避免 12MP 原图直传；HEIC/解码失败时回退原文件；至少 1 张即可提交
 - **返回**：使用 History API，浏览器返回键与页面内 Back 一致；提交后回退锁定在回执页
 - **重复提交**：提交期间按钮锁定；回执写入 `sessionStorage`，刷新 `#done` 仍显示原回执
 - **校验**：姓名、电话、邮箱、车牌、日期（不可晚于今天）、地点、勾选确认；错误行高亮并滚动定位

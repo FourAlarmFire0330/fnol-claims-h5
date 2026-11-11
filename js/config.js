@@ -24,6 +24,26 @@ window.APP_CONFIG = {
   defaultCenter: { lat: 37.166, lng: -119.75 },
   defaultZoom: 1,
 
+  /* Demo location. When set, tapping Allow on the location sheet drops the pin
+     here instead of asking the device for GPS, and opens at street level.
+     Set to null to use the real device location. */
+  simulateLocation: {
+    lat: 34.098,
+    lng: -118.3387,
+    line1: 'Sunset Blvd & N Highland Ave',
+    short: 'Los Angeles, CA 90028',
+    address: 'Sunset Blvd & N Highland Ave, Los Angeles, CA 90028'
+  },
+  streetZoom: 2200,
+
+  /* Street-level detail, drawn only once the map is zoomed in this far. */
+  streetMap: {
+    src: 'assets/hollywood-streets.svg',
+    bounds: { north: 34.1085, south: 34.0895, east: -118.3275, west: -118.3495 },
+    minK: 40,
+    labelMinK: 1100
+  },
+
   demoPolicy: {
     policyNumber: 'CA-4471-8829',
     insured: {
