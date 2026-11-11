@@ -77,12 +77,6 @@
     els.searchClear = document.getElementById('searchClear');
     els.results = document.getElementById('searchResults');
     els.recenter = document.getElementById('recenter');
-    els.demoChip = document.getElementById('demoChip');
-    els.keyVeil = document.getElementById('keyVeil');
-    els.keyInput = document.getElementById('keyInput');
-    els.keySave = document.getElementById('keySave');
-    els.keyClose = document.getElementById('keyClose');
-    els.keyForget = document.getElementById('keyForget');
     els.locVeil = document.getElementById('locVeil');
     els.allowLoc = document.getElementById('allowLoc');
     els.denyLoc = document.getElementById('denyLoc');
@@ -137,18 +131,6 @@
 
     els.recenter.addEventListener('click', function () {
       locateUser();
-    });
-
-    els.demoChip.addEventListener('click', openKeySheet);
-    els.keyClose.addEventListener('click', closeKeySheet);
-    els.keySave.addEventListener('click', saveMapsKey);
-    els.keyForget.addEventListener('click', forgetMapsKey);
-    els.keyInput.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter') { e.preventDefault(); saveMapsKey(); }
-      if (e.key === 'Escape') closeKeySheet();
-    });
-    els.keyVeil.addEventListener('click', function (e) {
-      if (e.target === els.keyVeil) closeKeySheet();
     });
 
     bindSearch();
@@ -226,38 +208,25 @@
   function initMap() {
     MapView.init({
       onCenter: onMapCenter,
-      onDemo: function (reason) {
-        els.demoChip.hidden = false;
-        els.demoChip.title = reason || 'Connect Google Maps';
-      },
-      onError: function () {}
+      onStart: showPin,
+      onPlace: function (place) {
+        state.programmaticMoveAt = Date.now();
+        applyResolved(place, place.lat, place.lng, 'search');
+      }
     }).then(function () {
-      showPin();
       decideLocationPermission();
-      seedLocation();
     }).catch(function () {
-      showPin();
-      decideLocationPermission();
-      seedLocation();
+      showBootError(new Error('The map could not start. Check your connection and try again.'));
     });
   }
 
-  function seedLocation() {
-    setTimeout(function () {
-      if (!state.locationReady || state.location) return;
-      resolveCurrentCenter();
-    }, 2600);
-  }
-
-  function resolveCurrentCenter() {
-    var c = MapView.getCenter();
-    if (!c) return;
-    els.addrSub.textContent = 'Finding the address…';
-    MapView.reverseGeocode(c.lat, c.lng).then(function (r) {
-      applyResolved(r, c.lat, c.lng, 'move');
-    }).catch(function () {
-      applyCoords(c.lat, c.lng);
-    });
+  function showSearchHint() {
+    state.locationReady = true;
+    if (!state.location) {
+      els.addrLine.textContent = 'Move the map to the car';
+      els.addrSub.textContent = 'Search a California city, or drag the map under the pin.';
+    }
+    pulseSearch();
   }
 
   function decideLocationPermission() {
@@ -267,11 +236,8 @@
     }
     navigator.permissions.query({ name: 'geolocation' }).then(function (perm) {
       if (perm.state === 'granted') locateUser();
-      else if (perm.state === 'denied') {
-        state.locationReady = true;
-        resolveCurrentCenter();
-        pulseSearch();
-      } else openLocVeil();
+      else if (perm.state === 'denied') showSearchHint();
+      else openLocVeil();
     }).catch(function () {
       openLocVeil();
     });
@@ -291,13 +257,7 @@
 
   function skipLocation() {
     closeLocVeil();
-    state.locationReady = true;
-    if (!state.location) {
-      els.addrLine.textContent = 'Search or move the map';
-      els.addrSub.textContent = 'Type a street, or drag the map under the pin.';
-      resolveCurrentCenter();
-    }
-    pulseSearch();
+    showSearchHint();
   }
 
   /* ---------------------------------------------------------------------
@@ -306,8 +266,9 @@
   function onMapCenter(c) {
     clearTimeout(centerTimer);
     centerTimer = setTimeout(function () {
-      if (!state.locationReady || state.locating) return;
+      if (state.locating) return;
       if (state.programmaticMoveAt && Date.now() - state.programmaticMoveAt < 1600) return;
+      state.locationReady = true;
       els.addrSub.textContent = 'Finding the address…';
       MapView.reverseGeocode(c.lat, c.lng).then(function (r) {
         applyResolved(r, c.lat, c.lng, 'move');
@@ -357,7 +318,6 @@
 
     els.addrLine.textContent = loc.line1 || loc.address || 'Location set';
     var bits = [loc.short, note].filter(Boolean);
-    if (MapView.isDemo()) bits.push('demo map');
     els.addrSub.textContent = bits.join(' · ');
 
     els.next1.disabled = false;
@@ -376,23 +336,22 @@
     }
 
     MapView.geolocate().then(function (pos) {
+      if (!MapView.contains(pos.lat, pos.lng)) {
+        toast('This demo map covers California only. Search a California city or drag the map instead.');
+        showSearchHint();
+        return null;
+      }
       state.programmaticMoveAt = Date.now();
-      MapView.panTo(pos.lat, pos.lng, { zoom: 18 });
+      MapView.panTo(pos.lat, pos.lng, { zoom: 6 });
       return MapView.reverseGeocode(pos.lat, pos.lng).catch(function () {
-        var coords = fmtCoords(pos.lat, pos.lng);
-        return { line1: 'Current location', short: coords, address: coords };
+        var point = fmtCoords(pos.lat, pos.lng);
+        return { line1: 'Current location', short: point, address: point };
       }).then(function (r) {
         applyResolved(r, pos.lat, pos.lng, 'gps', pos.accuracy);
       });
     }).catch(function (err) {
       toast(err && err.message ? err.message : 'We couldn’t get your location.');
-      state.locationReady = true;
-      if (!state.location) {
-        els.addrLine.textContent = 'Search or move the map';
-        els.addrSub.textContent = 'Type a street, or drag the map under the pin.';
-        resolveCurrentCenter();
-      }
-      pulseSearch();
+      showSearchHint();
     }).then(function () {
       state.locating = false;
       els.recenter.classList.remove('busy');
@@ -407,51 +366,6 @@
     void els.searchbar.offsetWidth;
     els.searchbar.classList.add('hint');
     setTimeout(function () { els.searchbar.classList.remove('hint'); }, 2600);
-  }
-
-  function hasSavedKey() {
-    try { return !!localStorage.getItem('ng.mapsKey.v1'); } catch (err) { return false; }
-  }
-
-  function openKeySheet() {
-    if (!els.keyVeil) return;
-    els.keyInput.value = '';
-    els.keyForget.hidden = !hasSavedKey();
-    els.keyVeil.classList.add('on');
-    els.keyVeil.setAttribute('aria-hidden', 'false');
-    setTimeout(function () {
-      try { els.keyInput.focus(); } catch (err) { /* ignore */ }
-    }, 120);
-  }
-
-  function closeKeySheet() {
-    var active = document.activeElement;
-    if (active && els.keyVeil.contains(active) && active.blur) active.blur();
-    els.keyVeil.classList.remove('on');
-    els.keyVeil.setAttribute('aria-hidden', 'true');
-  }
-
-  function saveMapsKey() {
-    var key = (els.keyInput.value || '').trim();
-    if (!/^AIza[0-9A-Za-z_-]{20,}$/.test(key)) {
-      toast('Paste a valid Google Maps API key (it starts with AIza).');
-      els.keyInput.focus();
-      return;
-    }
-    try {
-      localStorage.setItem('ng.mapsKey.v1', key);
-    } catch (err) {
-      toast('This browser blocked local storage, so the key can’t be saved.');
-      return;
-    }
-    els.keySave.classList.add('busy');
-    els.keySave.textContent = 'Connecting…';
-    location.reload();
-  }
-
-  function forgetMapsKey() {
-    try { localStorage.removeItem('ng.mapsKey.v1'); } catch (err) { /* ignore */ }
-    location.reload();
   }
 
   function showPin() {
@@ -521,7 +435,7 @@
 
   function renderResults(list) {
     if (!list.length) {
-      els.results.innerHTML = '<div class="none">No match. Try just the street name.</div>';
+      els.results.innerHTML = '<div class="none">No California place matches. Try a city like Fresno or San Diego.</div>';
       els.results.classList.add('on');
       return;
     }
@@ -530,7 +444,7 @@
         '<span class="ic">' + (window.ICONS.find || '') + '</span>' +
         '<span class="rg"><b>' + esc(s.name) + '</b><span>' + esc(s.sub) + '</span></span>' +
       '</button>';
-    }).join('') + (MapView.isDemo() ? '' : '<div class="gattr">Powered by Google</div>');
+    }).join('');
     els.results.classList.add('on');
   }
 
@@ -567,7 +481,7 @@
 
     MapView.resolveSuggestion(sug).then(function (place) {
       state.programmaticMoveAt = Date.now();
-      MapView.panTo(place.lat, place.lng, { zoom: 18 });
+      MapView.panTo(place.lat, place.lng, { zoom: place.zoom || 5 });
       applyResolved(place, place.lat, place.lng, 'search');
       clearSearch();
     }).catch(function (err) {
@@ -575,11 +489,10 @@
       state.locationReady = true;
       if (state.location) {
         els.addrLine.textContent = state.location.line1;
-        els.addrSub.textContent = [state.location.short, 'pin set'].filter(Boolean).join(' · ')
-          + (MapView.isDemo() ? ' · demo map' : '');
+        els.addrSub.textContent = [state.location.short, 'pin set'].filter(Boolean).join(' · ');
       } else {
-        els.addrLine.textContent = 'Search or move the map';
-        els.addrSub.textContent = 'Try another address.';
+        els.addrLine.textContent = 'Move the map to the car';
+        els.addrSub.textContent = 'Try another California city.';
       }
     });
   }
@@ -755,7 +668,11 @@
   }
 
   function buildCallbackData(payload) {
-    return { plate: payload.vehicle.plate };
+    return {
+      plate: payload.vehicle.plate,
+      address: payload.incident.location.address,
+      phone: payload.contact.phone
+    };
   }
 
   function completeSubmit(pending) {

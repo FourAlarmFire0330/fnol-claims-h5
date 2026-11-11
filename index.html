@@ -9,7 +9,7 @@
 <meta name="format-detection" content="telephone=no">
 <title>Northgate Claims · Report a collision</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230F3D5C'/%3E%3Cpath d='M16 7c-3.9 0-7 3.1-7 7 0 5 7 11 7 11s7-6 7-11c0-3.9-3.1-7-7-7Zm0 9.6a2.6 2.6 0 1 1 0-5.2 2.6 2.6 0 0 1 0 5.2Z' fill='%23fff'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="css/app.css?v=1.3.4">
+<link rel="stylesheet" href="css/app.css?v=1.4.2">
 </head>
 <body>
 
@@ -21,12 +21,23 @@
       <div class="prog"><i class="on"></i><i></i><i></i></div>
       <div class="toprow"><span></span><span class="kicker">Step 1 of 3</span></div>
       <h2 class="vt">Where is the car?</h2>
-      <p class="vsub">Search an address, or move the map under the pin.</p>
+      <p class="vsub">Search a California city, or move the map under the pin.</p>
     </div>
 
     <div class="mapwrap" id="mapwrap">
-      <div id="map" class="gmap"></div>
-      <div class="demo-map" id="mapFallback" hidden><div class="demo-art" id="demoArt"></div></div>
+      <div id="map" class="map-canvas" role="application" tabindex="0" aria-label="Map of California. Drag to move the pin, or use the zoom buttons.">
+        <div class="map-layer" id="mapLayer">
+          <img class="map-base" src="assets/california-map.svg" alt="Map of California" draggable="false">
+          <div class="map-labels" id="mapLabels"></div>
+        </div>
+      </div>
+
+      <div class="zoomctl" id="zoomCtl" aria-label="Map zoom">
+        <button id="zoomIn" type="button" aria-label="Zoom in">+</button>
+        <button id="zoomOut" type="button" aria-label="Zoom out">−</button>
+      </div>
+
+      <div class="map-credit" aria-hidden="true">Demo map · California</div>
 
       <div class="map-pin hide" id="pin" aria-hidden="true">
         <span class="pulse"></span>
@@ -35,7 +46,7 @@
 
       <div class="searchbar" id="searchbar">
         <span class="sic" data-ic="find"></span>
-        <input type="search" id="searchInput" placeholder="Search a street or place" aria-label="Search for an address" autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="search">
+        <input type="search" id="searchInput" placeholder="Search a California city or place" aria-label="Search a California city or place" autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="search">
         <button class="clr" id="searchClear" type="button" data-ic="close" aria-label="Clear search"></button>
       </div>
       <div class="results" id="searchResults" role="listbox" aria-label="Search suggestions"></div>
@@ -44,11 +55,9 @@
         <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="6.5"/><path d="M12 2v3.2M12 18.8V22M2 12h3.2M18.8 12H22"/></svg>
       </button>
 
-      <button class="demo-chip" id="demoChip" type="button" hidden title="Connect Google Maps">Demo map · Connect</button>
-
       <div class="sheet">
-        <div class="addr" id="addrLine" aria-live="polite">Locating you…</div>
-        <div class="addr2" id="addrSub">This can take a second.</div>
+        <div class="addr" id="addrLine" aria-live="polite">Move the map to the car</div>
+        <div class="addr2" id="addrSub">Search a California city, or drag the map under the pin.</div>
         <div class="ft">
           <button class="ghost-s" id="adjustBtn" type="button">Adjust by hand</button>
           <button class="btn" id="next1" type="button" disabled>Next</button>
@@ -64,20 +73,6 @@
         <p id="locDesc">We’ll drop a pin where you’re standing so the adjuster can find the car. Location is only used for this claim.</p>
         <button class="btn pbtn" id="allowLoc" type="button">Allow</button>
         <button class="skip" id="denyLoc" type="button">Not now</button>
-      </div>
-    </div>
-
-    <div class="veil" id="keyVeil" aria-hidden="true">
-      <div class="perm" role="dialog" aria-modal="true" aria-labelledby="keyTitle" aria-describedby="keyDesc">
-        <div class="grab"></div>
-        <div class="pico" data-ic="pin"></div>
-        <h3 id="keyTitle">Connect Google Maps</h3>
-        <p id="keyDesc">Paste a Maps JavaScript API key to see live maps and address search. It is kept in this browser only — for production, set it in <code>js/config.js</code>.</p>
-        <input class="keyinput" id="keyInput" type="text" inputmode="text" placeholder="AIza…" autocomplete="off" autocapitalize="none" spellcheck="false" aria-label="Google Maps API key">
-        <button class="btn pbtn" id="keySave" type="button">Use this key</button>
-        <button class="skip" id="keyClose" type="button">Cancel</button>
-        <button class="skip" id="keyForget" type="button" hidden>Remove saved key</button>
-        <p class="keynote" id="keyNote">The key needs Maps JavaScript API, Places API (New) and Geocoding API enabled.</p>
       </div>
     </div>
   </section>
@@ -210,12 +205,13 @@
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 </main>
 
-<script src="js/config.js?v=1.3.4"></script>
-<script src="js/icons.js?v=1.3.4"></script>
-<script src="js/api.js?v=1.3.4"></script>
-<script src="js/map.js?v=1.3.4"></script>
-<script src="js/photos.js?v=1.3.4"></script>
-<script src="js/details.js?v=1.3.4"></script>
-<script src="js/app.js?v=1.3.4"></script>
+<script src="js/config.js?v=1.4.2"></script>
+<script src="js/icons.js?v=1.4.2"></script>
+<script src="js/api.js?v=1.4.2"></script>
+<script src="js/ca-data.js?v=1.4.2"></script>
+<script src="js/map.js?v=1.4.2"></script>
+<script src="js/photos.js?v=1.4.2"></script>
+<script src="js/details.js?v=1.4.2"></script>
+<script src="js/app.js?v=1.4.2"></script>
 </body>
 </html>

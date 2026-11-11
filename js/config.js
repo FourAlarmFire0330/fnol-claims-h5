@@ -1,12 +1,6 @@
 /* Runtime configuration. Everything the app needs to talk to the outside
    world lives here so it can be swapped per environment without a rebuild. */
 window.APP_CONFIG = {
-  /* Google Maps JavaScript API key.
-     Enable: Maps JavaScript API, Places API (New), Geocoding API.
-     Restrict the key to your H5 origin (HTTP referrers).
-     Leave empty to preview the whole flow on the built-in demo map. */
-  googleMapsApiKey: '',
-
   /* Claims API. Leave apiBase empty to run the flow against mock data. */
   apiBase: '',
   endpoints: {
@@ -26,8 +20,9 @@ window.APP_CONFIG = {
 
   region: 'US',
   language: 'en',
-  defaultCenter: { lat: 37.4529, lng: -122.1817 },   // Menlo Park, CA
-  defaultZoom: 17,
+  /* Whole-state view, roughly the geographic centre of California. */
+  defaultCenter: { lat: 37.166, lng: -119.75 },
+  defaultZoom: 1,
 
   demoPolicy: {
     policyNumber: 'CA-4471-8829',

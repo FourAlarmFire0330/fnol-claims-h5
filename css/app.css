@@ -124,13 +124,56 @@ h2.vt{margin:2px 0 0;font-size:25px;line-height:1.22;font-weight:660;letter-spac
 /* ==========================================================================
    1 · MAP
    ========================================================================== */
-.mapwrap{position:relative;flex:1;min-height:0;overflow:hidden;background:#E8EBE3}
-.gmap{position:absolute;inset:0;background:#E8EBE3}
-.gmap img{max-width:none}
-.demo-map{position:absolute;inset:0;overflow:hidden;touch-action:none;cursor:grab;background:#E8EBE3}
-.demo-map.dragging{cursor:grabbing}
-.demo-art{position:absolute;inset:-40%;will-change:transform}
-.demo-art svg{width:100%;height:100%;display:block}
+.mapwrap{position:relative;flex:1;min-height:0;overflow:hidden;background:linear-gradient(135deg,#DCEBF1,#CDE1EA)}
+.map-canvas{
+  position:absolute;inset:0;overflow:hidden;touch-action:none;cursor:grab;
+  background:linear-gradient(135deg,#DCEBF1,#CDE1EA);outline:0;user-select:none;-webkit-user-select:none;
+}
+.map-canvas.dragging{cursor:grabbing}
+.map-canvas:focus-visible{box-shadow:inset 0 0 0 3px rgba(44,123,184,.5)}
+.map-layer{
+  position:absolute;left:0;top:0;width:1000px;height:1146px;
+  transform-origin:0 0;will-change:transform;
+}
+.map-base{
+  width:100%;height:100%;display:block;pointer-events:none;
+  -webkit-user-drag:none;user-select:none;
+}
+.map-labels{position:absolute;inset:0;pointer-events:none}
+.map-label{
+  position:absolute;left:0;top:0;display:flex;align-items:center;gap:5px;
+  padding:3px 6px 3px 3px;border:0;border-radius:7px;background:transparent;
+  cursor:pointer;pointer-events:auto;white-space:nowrap;
+  font-size:11.5px;font-weight:600;color:#33503B;letter-spacing:-.005em;
+  text-shadow:0 1px 0 #fff,0 0 4px #fff,0 0 7px #fff;
+  transition:background .12s;
+}
+.map-label:hover,.map-label:focus-visible{background:rgba(255,255,255,.8);outline:0}
+.map-label i{
+  width:6px;height:6px;border-radius:50%;background:#2E6B46;
+  box-shadow:0 0 0 1.5px #fff;flex:0 0 auto;
+}
+.map-label.major{font-size:12.5px;font-weight:700;color:#234631}
+.map-label.major i{width:7px;height:7px;background:#123C57}
+.zoomctl{
+  position:absolute;right:14px;top:70px;z-index:5;display:flex;flex-direction:column;
+  background:#fff;border-radius:11px;overflow:hidden;
+  box-shadow:0 3px 12px rgba(8,27,42,.16),0 0 0 1px rgba(15,35,49,.06);
+}
+.zoomctl button{
+  width:40px;height:40px;padding:0;border:0;background:#fff;color:var(--navy);
+  font-size:21px;font-weight:500;line-height:1;cursor:pointer;display:grid;place-items:center;
+  transition:background .14s;
+}
+.zoomctl button + button{border-top:1px solid var(--hair)}
+.zoomctl button:hover{background:var(--ice)}
+.zoomctl button:focus-visible{outline:2px solid var(--blue);outline-offset:-2px}
+.map-credit{
+  position:absolute;left:14px;bottom:calc(var(--sab) + 162px);z-index:4;
+  font-size:9.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+  color:#4E6474;background:rgba(255,255,255,.86);padding:5px 8px;border-radius:6px;
+  box-shadow:0 1px 5px rgba(8,27,42,.1);pointer-events:none;
+}
 
 .map-pin{
   position:absolute;left:50%;top:50%;transform:translate(-50%,-100%);
@@ -203,15 +246,6 @@ h2.vt{margin:2px 0 0;font-size:25px;line-height:1.22;font-weight:660;letter-spac
 .fab:hover{background:var(--ice)}
 .fab:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
 .fab.busy svg{animation:spin 1s linear infinite}
-.demo-chip{
-  position:absolute;left:14px;bottom:calc(var(--sab) + 162px);z-index:4;font:inherit;
-  font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
-  color:#4E6474;background:rgba(255,255,255,.92);border:1px solid rgba(15,35,49,.08);
-  padding:6px 10px;border-radius:8px;box-shadow:0 2px 8px rgba(8,27,42,.1);cursor:pointer;line-height:1.2;
-  transition:background .15s,color .15s;
-}
-.demo-chip:hover{background:#fff;color:var(--navy)}
-.demo-chip:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
 
 .sheet{
   position:absolute;left:12px;right:12px;bottom:calc(var(--sab) + 12px);
@@ -226,9 +260,6 @@ h2.vt{margin:2px 0 0;font-size:25px;line-height:1.22;font-weight:660;letter-spac
   cursor:pointer;padding:8px 4px;font-family:inherit;white-space:nowrap;
 }
 .sheet .btn{height:48px;border-radius:12px;font-size:15.5px}
-
-/* Google's own bottom-left logo sits above this strip; the sheet floats over the map. */
-.gm-style .gm-style-cc{opacity:.9}
 
 /* ---------- overlay / permission ---------- */
 .veil{
@@ -257,14 +288,6 @@ h2.vt{margin:2px 0 0;font-size:25px;line-height:1.22;font-weight:660;letter-spac
 }
 .perm .skip:hover{color:var(--navy);background:var(--ice)}
 .perm code{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:12.5px;background:var(--ice);padding:1px 4px;border-radius:4px}
-.keyinput{
-  width:100%;height:50px;border:1px solid var(--line);border-radius:13px;
-  padding:0 13px;font-size:16px;font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
-  color:var(--ink);background:#FBFDFE;outline:0;margin:0 0 10px;-webkit-appearance:none;
-}
-.keyinput:focus{border-color:var(--blue);background:#fff;box-shadow:0 0 0 3px rgba(44,123,184,.1)}
-.keyinput::placeholder{color:#A6B6C2}
-.keynote{margin:10px 0 0 !important;font-size:11.5px !important;line-height:1.5 !important;color:var(--soft) !important;text-align:center}
 .perm .skip:focus-visible{outline:2px solid var(--blue);outline-offset:-2px}
 
 /* photo source sheet */
