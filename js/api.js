@@ -169,7 +169,9 @@
         if (reply && reply.code != null) {
           var code = Number(reply.code);
           if (code !== 0 && code !== 200) {
-            throw new Error(reply.message || 'The claims team’s system did not accept the update. Please try again.');
+            var msg = String(reply.message || '')
+              .replace(/([?&]token=)[^&\s]+/gi, '$1***');
+            throw new Error(msg || 'The claims team’s system did not accept the update. Please try again.');
           }
         }
         return reply || {};

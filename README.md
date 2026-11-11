@@ -20,7 +20,7 @@ python3 -m http.server 4173
 
 打开 <http://localhost:4173>。手机预览建议用同一局域网的 IP 访问；摄像头/定位需要 **HTTPS 或 localhost** 才是安全上下文。
 
-> 修改 `js/` 或 `css/` 后，请把 `index.html` 里的 `?v=1.3.2` 改成新的版本号（或强制刷新），避免浏览器继续使用缓存。
+> 修改 `js/` 或 `css/` 后，请把 `index.html` 里的 `?v=1.3.4` 改成新的版本号（或强制刷新），避免浏览器继续使用缓存。
 
 ## 配置 Google Maps
 
@@ -138,10 +138,10 @@ Agent 工作流
 客户手机 · H5 链接
   │  填写定位 / 照片 / 信息，点击 Submit
   ▼
-H5 → POST https://fnol-claims-h5.vercel.app/api/async/callback?token=<token>
+H5 → POST https://agents.dyna.ai/api/async/callback?token=<token>
      {"code":0,"message":"ok","data":{"plate":"8KDL294"}}
   ▼
-Vercel Function → 平台回调 → Trigger → 工作流继续
+平台 Trigger → 工作流继续
 ```
 
 ### 1. 异步任务节点
@@ -158,7 +158,7 @@ Vercel Function → 平台回调 → Trigger → 工作流继续
 
 短信服务必须**同步返回** `{"code":200,"message":"success"}`，否则平台会认为异步任务提交失败（见文档中的“外部服务响应”）。短信是否真正发送成功，由短信服务自己处理。
 
-回调地址不需要由短信服务动态传：H5 固定调用自己域名下的 `/api/async/callback`，由 Vercel Function 转发到平台（见第 5 节）。
+回调地址不需要由短信服务动态传：H5 固定调用平台地址 `https://agents.dyna.ai/api/async/callback`（配置在 [`js/config.js`](js/config.js)）。
 
 ### 2. 短信里的 H5 链接
 
@@ -189,7 +189,7 @@ H5 支持的链接参数：
 H5 在客户点击 **Submit claim** 后发送：
 
 ```http
-POST https://fnol-claims-h5.vercel.app/api/async/callback?token=<token>
+POST https://agents.dyna.ai/api/async/callback?token=<token>
 Content-Type: application/json
 ```
 
@@ -213,7 +213,7 @@ On_Success 只需要配置一个映射：
 | --- | --- |
 | `plate` | `data.plate` |
 
-H5 判断成功的方式：HTTP 2xx，且响应体如果是 JSON、`code` 为 `0` 或 `200`。demo 返回的是 `{"code":0,"message":"ok"}`；文档里 `code=200` 的写法也兼容。
+H5 判断成功的方式：HTTP 2xx，且响应体 JSON 的 `code` 为 `0` 或 `200`。注意平台即使返回 HTTP 200，也可能在 body 里返回错误；例如无效 token 会返回 `{"code":"400004","message":"Server 404 Error..."}`，H5 会把这种响应当作失败。
 
 ### 4. 失败与重试
 
@@ -221,25 +221,17 @@ H5 判断成功的方式：HTTP 2xx，且响应体如果是 JSON、`code` 为 `0
 - 理赔接口本身失败：再次提交会重试理赔接口，`clientClaimNumber` 也保持不变，可作为幂等键。
 - 回调成功后才进入回执页；成功后 token 会从 `sessionStorage` 清除。
 
-### 5. Vercel 回调中转
+### 5. 平台直连与 CORS
 
-H5 调用自己域名下的 `/api/async/callback`，不直接跨域访问平台，所以浏览器端没有 CORS 问题。中转逻辑在 [`api/async/callback.js`](api/async/callback.js)：
+H5 直接 POST 到平台：
 
-```
-H5 → POST https://fnol-claims-h5.vercel.app/api/async/callback?token=<token>
-   → Vercel Function
-   → POST https://<平台域名>/api/async/callback?token=<token>
+```text
+H5 (fnol-claims-h5.vercel.app) → https://agents.dyna.ai/api/async/callback?token=<token>
 ```
 
-平台地址用 Vercel 环境变量配置：
+平台回调接口允许跨域（`OPTIONS` 返回 204，`Access-Control-Allow-Origin: *`），所以不需要 Vercel 中转。Trigger Node 里的 `{hostname}` 应填平台环境域名 `agents.dyna.ai`，不是 H5 域名。
 
-```
-AGENT_CALLBACK_URL=https://<平台域名>/api/async/callback
-```
-
-在 Vercel 项目 **Settings → Environment Variables** 里添加后重新部署。未配置时默认转发到 demo 环境 `https://agentos.resultscloud.com/api/async/callback`；正式环境请务必改成你自己的平台地址。
-
-如果 H5 换了域名，同步修改 [`js/config.js`](js/config.js) 的 `asyncCallbackUrl`。中转函数只转发 `token` 和 JSON body，不记录 token 或用户数据。
+如果以后平台收紧 CORS，或者要把回调统一收口到 H5 域名，再加一层服务端转发，并把 [`js/config.js`](js/config.js) 的 `asyncCallbackUrl` 指到转发地址。
 
 ### 6. 超时与安全
 
@@ -260,7 +252,6 @@ js/map.js               Google 地图、拖动选点、Places 搜索、反向地
 js/photos.js            相机/相册、客户端压缩、槽位管理与校验
 js/details.js           信息核对表单、行内编辑、字段校验
 js/app.js               路由（History）、token 捕获、提交流程、回执
-api/async/callback.js   Vercel Function：转发 H5 回调到智能体平台
 ```
 
 ## 已处理的细节
@@ -276,6 +267,6 @@ api/async/callback.js   Vercel Function：转发 H5 回调到智能体平台
 ## 待接入
 
 - 真实短信发送、H5 链接 token 的签发/校验由短信服务完成（H5 从 `#where?token=` 读取并带回回调）
-- 部署时需要在 Vercel 设置 `AGENT_CALLBACK_URL` 指向你的平台回调地址，并重新部署；未设置时默认转发到 demo 环境
+- 平台回调地址是 `https://agents.dyna.ai/api/async/callback`；换环境时改 [`js/config.js`](js/config.js) 的 `asyncCallbackUrl`
 - 车牌、车型、颜色目前来自保单数据（原型标注为 Photo）；如需 OCR，可在 `js/photos.js` 选图完成后调用识别接口回填 `details.js`
 - 理赔号生成、案件落库、查勘员通知均在 `POST /fnol/claims` 后端实现；异步回调只负责通知 agent 继续流程
