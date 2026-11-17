@@ -653,7 +653,7 @@
       setSubmitBusyLabel('Notifying…');
       return ClaimAPI.notifyAsyncTask(
         state.callback.url,
-        buildCallbackData(payload),
+        buildCallbackData(payload, pending.claimNumber),
         photos
       );
     }).then(function () {
@@ -678,11 +678,12 @@
     });
   }
 
-  function buildCallbackData(payload) {
+  function buildCallbackData(payload, claimNumber) {
     return {
       plate: payload.vehicle.plate,
       address: payload.incident.location.address,
-      phone: payload.contact.phone
+      phone: payload.contact.phone,
+      claim_number: claimNumber
     };
   }
 

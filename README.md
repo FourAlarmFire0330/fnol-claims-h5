@@ -20,7 +20,7 @@ python3 -m http.server 4173
 
 打开 <http://localhost:4173>。手机预览建议用同一局域网的 IP 访问；摄像头/定位需要 **HTTPS 或 localhost** 才是安全上下文。
 
-> 修改 `js/`、`css/` 或 `assets/` 后，请把 `index.html` 里的 `?v=1.5.4` 改成新的版本号（或强制刷新），避免浏览器继续使用缓存。
+> 修改 `js/`、`css/` 或 `assets/` 后，请把 `index.html` 里的 `?v=1.5.5` 改成新的版本号（或强制刷新），避免浏览器继续使用缓存。
 
 ## 内置 California 地图
 
@@ -120,7 +120,7 @@ endpoints: {
 
 ## 接入智能体平台异步任务（短信 → H5 → 回调）
 
-对应平台文档里的「异步任务」节点：平台先调用短信服务，短信服务把带一次性 token 的 H5 链接发给客户；客户在 H5 填完并提交后，H5 调用平台回调，工作流从等待点继续。当前按 demo 的格式提交（`code: 0`、`message: "ok"`），`data` 回传 `plate`、`address`、`phone` 三个字段。
+对应平台文档里的「异步任务」节点：平台先调用短信服务，短信服务把带一次性 token 的 H5 链接发给客户；客户在 H5 填完并提交后，H5 调用平台回调，工作流从等待点继续。当前按 demo 的格式提交（`code: 0`、`message: "ok"`），`data` 回传 `plate`、`address`、`phone`、`claim_number` 四个字段。
 
 ### 整体链路
 
@@ -201,7 +201,8 @@ Body：
   "data": {
     "plate": "8KDL294",
     "address": "San Diego, CA",
-    "phone": "+1 (650) 555-0142"
+    "phone": "+1 (650) 555-0142",
+    "claim_number": "FN-2026-129209"
   }
 }
 ```
@@ -213,16 +214,18 @@ Body：
 | `plate` | 车牌号 | 信息核对页 |
 | `address` | 地图上选定位置的地址 | Step 1 选点结果（`incident.location.address`） |
 | `phone` | 客户联系电话 | 保单 / 信息核对页 |
+| `claim_number` | 理赔号（与回执页显示一致） | 提交成功后生成的理赔号 |
 
-`latitude / longitude / claimNumber / name / photoCount` 仍然不放进回调；完整理赔信息照常提交到 `POST /fnol/claims`。需要增减字段时改 `js/app.js` 的 `buildCallbackData()` 即可。
+`latitude / longitude / name / photoCount` 仍然不放进回调；完整理赔信息照常提交到 `POST /fnol/claims`。需要增减字段时改 `js/app.js` 的 `buildCallbackData()` 即可。
 
-On_Success 里配置三条映射：
+On_Success 里配置四条映射：
 
 | 平台变量 | 映射路径 |
 | --- | --- |
 | `plate` | `data.plate` |
 | `address` | `data.address` |
 | `phone` | `data.phone` |
+| `claim_number` | `data.claim_number` |
 
 H5 判断成功的方式：HTTP 2xx，且响应体 JSON 的 `code` 为 `0` 或 `200`。注意平台即使返回 HTTP 200，也可能在 body 里返回错误；例如无效 token 会返回 `{"code":"400004","message":"Server 404 Error..."}`，H5 会把这种响应当作失败。
 
